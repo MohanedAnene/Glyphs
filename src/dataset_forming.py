@@ -21,10 +21,10 @@ class GlyphExporter:
         self.metadata = {
             "name": dataset_name,
             "time-of-creation": datetime.now().isoformat(),
-            "samples": []
+            "samples": {}
         }
 
-    def add(self, export_result):
+    def add(self, export_result, split='train'):
 
         self.glyph_blobs.append((export_result))
         return self  # Enable method chaining
