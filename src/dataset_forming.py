@@ -58,7 +58,7 @@ class GlyphExporter:
 
 
 
-def display_dataset(zip_path, img_size=64):
+def display_dataset(zip_path, img_size=64, grid_size=(5, 5)):
     """
     Display glyphs in a 5x5 grid (always 25 images).
     
