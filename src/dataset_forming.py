@@ -5,6 +5,12 @@ import numpy as np
 from datetime import datetime
 import math
 import random
+import matplotlib.pyplot as plt
+from PIL import Image
+import io
+import torch
+import torchvision
+
 
 class GlyphExporter:
     def __init__(self, filepath:str, dataset_name="Unnamed Dataset"):
@@ -49,3 +55,61 @@ class GlyphExporter:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is None:
             self.finalize()
+
+
+
+def display_dataset(zip_path, img_size=64):
+    """
+    Display glyphs in the largest possible square grid based on available images
+    
+    Args:
+        zip_path: Path to the zipped dataset
+        img_size: Size to resize each image to (default 64)
+    """
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        # Get all PNG files
+        png_files = [f for f in zip_ref.namelist() if f.endswith('.png')]
+        
+        # Determine optimal grid size
+        if len(png_files) >= 625:  # 25×25
+            grid_size = 25
+            n_samples = 625
+        elif len(png_files) >= 100:  # 10×10 fallback
+            grid_size = 10
+            n_samples = 100
+        elif len(png_files) >= 25:  # 5×5 fallback
+            grid_size = 5
+            n_samples = 25
+        else:
+            print(f"Not enough images for a grid (found {len(png_files)}). Need at least 25.")
+            return
+        
+        # Select samples
+        selected_files = random.sample(png_files, n_samples)
+        
+        # Load and preprocess images
+        images = []
+        for file in selected_files:
+            img_data = zip_ref.read(file)
+            img = Image.open(io.BytesIO(img_data)).convert('RGB')
+            img = img.resize((img_size, img_size))
+            img_tensor = torchvision.transforms.ToTensor()(img)
+            images.append(img_tensor)
+        
+        # Create grid
+        grid = torchvision.utils.make_grid(
+            torch.stack(images),
+            nrow=grid_size,
+            padding=2,
+            normalize=True,
+            pad_value=0.9  # Light background
+        )
+        
+        # Display with appropriate figure size
+        fig_size = max(10, grid_size)  # Scale figure with grid size
+        plt.figure(figsize=(fig_size, fig_size))
+        plt.imshow(grid.permute(1, 2, 0).numpy())
+        plt.axis('off')
+        plt.title(f"Displaying {grid_size}×{grid_size} grid ({len(png_files)} images available)")
+        plt.tight_layout(pad=0)
+        plt.show()
