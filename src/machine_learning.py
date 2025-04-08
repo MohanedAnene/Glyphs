@@ -13,11 +13,10 @@ import math
 
 class GlyphDataset(Dataset):
     def __init__(self, zip_path, resize=None, split='train', transform=None):
-        self.zip_path = zip_path
         self.resize = resize
         self.split = split
 
-        # Define default transform
+        # Define transform pipeline
         if transform:
             self.transform = transform
         else:
@@ -27,33 +26,48 @@ class GlyphDataset(Dataset):
             base_transforms.append(transforms.ToTensor())
             self.transform = transforms.Compose(base_transforms)
 
-        # Load metadata and extract sample info
+        # Load metadata and extract samples
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             with zip_ref.open('_dataset-info.json') as f:
                 self.metadata = json.load(f)
 
-        self.samples = self.metadata['samples'].get(split, [])
-        self.zip_ref = zipfile.ZipFile(zip_path, 'r')  # keep open for __getitem__
+            self.samples = self.metadata['samples'].get(split, [])
+
+            # Preload and store raw image bytes (compressed)
+            self.image_data = {}
+            for sample in self.samples:
+                filename = sample['file']
+                try:
+                    with zip_ref.open(filename) as image_file:
+                        self.image_data[filename] = image_file.read()
+                except Exception as e:
+                    print(f"[WARNING] Failed to load {filename}: {e}")
+                    self.image_data[filename] = None  # Placeholder for failed loads
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
-        image_name = sample['file']
+        filename = sample['file']
         label = sample['value']
 
+        image_bytes = self.image_data.get(filename)
+
+        if image_bytes is None:
+            # Create a blank image as fallback
+            blank_image = Image.new('RGB', (64, 64) if self.resize is None else self.resize)
+            return self.transform(blank_image), -1
+
         try:
-            with self.zip_ref.open(image_name) as image_file:
-                image = Image.open(io.BytesIO(image_file.read())).convert('RGB')
-                if self.transform:
-                    image = self.transform(image)
-                return image, label
+            # Decode from bytes when needed
+            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+            return self.transform(image), label
         except Exception as e:
-            print(f"[ERROR] Failed to load {image_name}: {e}")
-            # Return a blank image if loading fails
-            blank_image = Image.new('RGB', (64, 64) if self.resize is None else Image.new('RGB', self.resize))
-            return self.transform(blank_image), -1  # -1 as invalid label
+            print(f"[ERROR] Decoding failed for {filename}: {e}")
+            blank_image = Image.new('RGB', (64, 64) if self.resize is None else self.resize)
+            return self.transform(blank_image), -1
+
 
     def show(self, num=10):
         num = min(num, len(self))
