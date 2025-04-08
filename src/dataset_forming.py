@@ -112,3 +112,9 @@ def display_dataset(zip_path, img_size=64, grid_size=(5, 5)):
         plt.title(f"Displaying 5×5 grid ({len(png_files)} images available)")
         plt.tight_layout(pad=0)
         plt.show()
+
+def random_color() -> tuple:
+    return tuple(np.random.uniform(0, 1, 3)) + (1,)
+
+def random_width(min:float=1, max:float=50) -> str:
+    return f'{random.uniform(min, max)}p'
