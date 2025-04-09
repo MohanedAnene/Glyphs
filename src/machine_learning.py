@@ -53,7 +53,8 @@ class GlyphDataset(Dataset):
         sample = self.samples[idx]
         filename = sample['file']
         label = sample['value']
-        binned_label = min(max(0, int(label / 10)), 9) ##this will be changed to something dynamic until we move to regression
+
+        binned_label = min(max(0, int(label / 10)), 9) ##This will be removed later so that number of classes can be chosen dynamically/or changed to regression
 
         image_bytes = self.image_data.get(filename)
         if image_bytes is None:
@@ -135,6 +136,46 @@ losses = []
 def create_loader(dataset: GlyphDataset, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
                       pin_memory=True if torch.cuda.is_available() else False)
+
+
+def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, silent: bool = False):
+    """
+    Visualizes a batch from a DataLoader with optional silence mode.
+
+    Args:
+        loader: DataLoader to visualize
+        max_images: Maximum number of images to display
+        nrow: Number of images per row in grid
+        silent: If True, suppresses all print statements
+    """
+    try:
+        images, labels, _ = next(iter(loader))
+
+        if len(images) > max_images:
+            images = images[:max_images]
+            labels = labels[:max_images]
+            if not silent:
+                print(f"Displaying first {max_images} images from batch of {len(images)}")
+
+        ncol = math.ceil(len(images) / nrow)
+
+        fig, axes = plt.subplots(ncol, nrow, figsize=(nrow * 2.5, ncol * 2.5))
+        axes = axes.flatten() if max_images > 1 else [axes]
+
+        for idx, ax in enumerate(axes):
+            if idx < len(images):
+                img = images[idx].permute(1, 2, 0).numpy()
+                ax.imshow(img)
+                ax.text(4, 12, str(labels[idx].item()), fontsize=10, color='white',
+                        bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
+            ax.axis('off')
+
+        plt.tight_layout()
+        plt.show()
+
+    except Exception as e:
+        if not silent:
+            print(f"Error visualizing batch: {e}")
 
 
 def train(zip_path, batch_size=16, epochs=5):
