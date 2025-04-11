@@ -5,12 +5,15 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from torchvision.utils import make_grid
 from PIL import Image
+import numpy as np
 import io
 import zipfile
 import json
 import random
 import matplotlib.pyplot as plt
 import math
+from sklearn.metrics import confusion_matrix
+import itertools 
 
 
 # --- Glyph Dataset ---
@@ -173,5 +176,97 @@ def plot_training_loss(losses, title="Training Loss Over Time", xlabel="Steps", 
     plt.title(title)
     plt.legend()
     plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_confusion_matrix(y_true, y_pred, classes,
+                          normalize=False,
+                          title='Confusion Matrix',
+                          cmap=plt.cm.Blues,
+                          figsize=(8, 6)):
+
+    cm = confusion_matrix(y_true, y_pred)
+
+    fig, ax = plt.subplots(figsize=figsize)
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04) 
+    num_classes = len(classes)
+    ax.set(xticks=np.arange(num_classes),
+           yticks=np.arange(num_classes),
+           xticklabels=classes, yticklabels=classes,
+           title=title,
+           ylabel='True label',
+           xlabel='Predicted label')
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+        ax.text(j, i, format(cm[i, j], fmt),
+                ha="center", va="center",
+                # Set text color based on background intensity
+                color="white" if cm[i, j] > thresh else "black")
+
+    fig.tight_layout()
+    return ax
+
+def show_incorrect_predictions(model, loader, num_classes=10, max_display=10, device=None):
+    incorrect_samples = []
+
+    with torch.no_grad():
+        for images, labels, values in loader:
+            images = images.to(device)
+            labels = labels.to(device)
+            outputs = model(images)
+            _, preds = torch.max(outputs, 1)
+
+            for i in range(images.size(0)):
+                if preds[i] != labels[i]:
+                    val = values[i].item()
+                    pred_class = preds[i].item()
+
+                    bin_width = 100.0 / num_classes
+                    left = pred_class * bin_width
+                    right = (pred_class + 1) * bin_width
+
+                    # Compute closest boundary difference
+                    diff_to_left = abs(val - left)
+                    diff_to_right = abs(val - right)
+                    closest_diff = min(diff_to_left, diff_to_right)
+
+                    incorrect_samples.append({
+                        'image': images[i].cpu(),
+                        'value': val,
+                        'pred_class': pred_class,
+                        'closest_diff': closest_diff
+                    })
+
+                    if len(incorrect_samples) >= max_display:
+                        break
+            if len(incorrect_samples) >= max_display:
+                break
+
+    if not incorrect_samples:
+        print("No incorrect predictions found.")
+        return
+
+    nrow = 5
+    ncol = math.ceil(len(incorrect_samples) / nrow)
+    fig, axes = plt.subplots(ncol, nrow, figsize=(nrow * 2, ncol * 2))
+    axes = axes.flatten() if max_display > 1 else [axes]
+
+    for idx, ax in enumerate(axes):
+        if idx < len(incorrect_samples):
+            sample = incorrect_samples[idx]
+            img = sample['image'].permute(1, 2, 0).numpy()
+            ax.imshow(img)
+            ax.text(
+                4, 12,
+                f"Val: {sample['value']:.2f}\nPred: {sample['pred_class']}\nDiff to boundary: {sample['closest_diff']:.2f}",
+                fontsize=9, color='white',
+                bbox=dict(facecolor='red', alpha=0.7, boxstyle='round,pad=0.3')
+            )
+        ax.axis('off')
+
     plt.tight_layout()
     plt.show()
