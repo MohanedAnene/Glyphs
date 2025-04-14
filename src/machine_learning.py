@@ -36,9 +36,11 @@ class GlyphDataset(Dataset):
             with zip_ref.open('_dataset-info.json') as f:
                 self.metadata = json.load(f)
 
-            self.samples = []
-            for split_key in self.metadata['samples']:
-                self.samples.extend(self.metadata['samples'][split_key])
+            if split in self.metadata['samples']:
+                self.samples = self.metadata['samples'][split]
+            else:
+                raise ValueError(f"Split '{split}' not found in dataset metadata. Available splits: {list(self.metadata['samples'].keys())}")
+
 
             self.image_data = {}
             for sample in self.samples:
