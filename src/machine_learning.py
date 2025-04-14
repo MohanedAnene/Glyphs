@@ -29,6 +29,8 @@ class GlyphDataset(Dataset):
             base_transforms = []
             if resize is not None:
                 base_transforms.append(transforms.Resize(resize))
+            else:
+                base_transforms.append(transforms.Resize((224, 224)))
             base_transforms.append(transforms.ToTensor())
             self.transform = transforms.Compose(base_transforms)
 
