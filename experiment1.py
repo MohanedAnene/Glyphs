@@ -74,7 +74,8 @@ for nclasses in [10, 20, 50, 80, 100, 150]:
         trained_model, loss_history = train_model(model, train_loader, num_epochs=100, lr=0.001)
 
         # === Evaluation ===
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+        trained_model = trained_model.to(device)
         trained_model.eval()
         all_true_labels = []
         all_predicted_labels = []
