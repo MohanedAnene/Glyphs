@@ -18,10 +18,11 @@ import itertools
 
 # --- Glyph Dataset ---
 class GlyphDataset(Dataset):
-    def __init__(self, zip_path, resize=None, split='train', transform=None, num_classes=10):
+    def __init__(self, zip_path, resize=None, split='train', transform=None, num_classes=10, stride=1):
         self.resize = resize
         self.split = split
         self.num_classes = num_classes
+        self.stride = stride
 
         if transform:
             self.transform = transform
@@ -42,6 +43,10 @@ class GlyphDataset(Dataset):
                 self.samples = self.metadata['samples'][split]
             else:
                 raise ValueError(f"Split '{split}' not found in dataset metadata. Available splits: {list(self.metadata['samples'].keys())}")
+            
+            if self.stride > 1:
+                self.samples = self.samples[self.stride - 1 :: self.stride]
+
 
 
             self.image_data = {}
