@@ -27,7 +27,7 @@ class GlyphClassifier(nn.Module):
         return x
     
 def train_model(model, train_loader, num_epochs=100, lr=0.001):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -64,8 +64,8 @@ for nclasses in [10, 20, 50, 80, 100, 150]:
     for res in [32, 48, 64, 128, 256]:
         print(f"\n=== Training for {nclasses} classes at {res}x{res} resolution ===")
 
-        train_dataset = ML.GlyphDataset(dataset_file, split='train', resize=(res, res), num_classes=nclasses, stride=1000)
-        test_dataset = ML.GlyphDataset(dataset_file, split='test', resize=(res, res), num_classes=nclasses,stride=1000)
+        train_dataset = ML.GlyphDataset(dataset_file, split='train', resize=(res, res), num_classes=nclasses)
+        test_dataset = ML.GlyphDataset(dataset_file, split='test', resize=(res, res), num_classes=nclasses)
 
         train_loader = ML.create_loader(train_dataset, batch_size=64, shuffle=True)
         test_loader = ML.create_loader(test_dataset, batch_size=64, shuffle=False)
