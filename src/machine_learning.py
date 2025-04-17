@@ -18,11 +18,12 @@ import itertools
 
 # --- Glyph Dataset ---
 class GlyphDataset(Dataset):
-    def __init__(self, zip_path, resize=None, split='train', transform=None, num_classes=10, stride=1):
+    def __init__(self, zip_path, resize=None, split='train', transform=None, bins=10, stride=1, mode='classification'):
         self.resize = resize
         self.split = split
-        self.num_classes = num_classes
+        self.bins = bins
         self.stride = stride
+        self.mode = mode.lower()
 
         if transform:
             self.transform = transform
@@ -61,13 +62,24 @@ class GlyphDataset(Dataset):
 
     def __len__(self):
         return len(self.samples)
+    
+    def _continuous_to_bin(self, value, num_bins):
+        value = max(min(value, 1.0), 0.0)  # Clamp value into [0,1]
+        bin_index = int(value * num_bins)  # Scale to bins
+        return min(bin_index, num_bins - 1)  # Cap at last bin
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
         filename = sample['file']
-        label = sample['value']
+        value = sample['value']
 
-        binned_label = get_label_class(label, self.num_classes)
+        if self.mode == 'classification' :
+            label = get_label_class(value, self.bins)
+        elif self.mode == 'regression':
+            label = self._continuous_to_bin(value / 100.0, self.bins)  # scale the bin to [0,1]
+        else:
+            raise ValueError(f"Image data not found for file: {filename}")
+    
 
         image_bytes = self.image_data.get(filename)
         if image_bytes is None:
@@ -75,7 +87,7 @@ class GlyphDataset(Dataset):
 
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-            return self.transform(image), binned_label, label
+            return self.transform(image), label, value
         except Exception as e:
             raise RuntimeError(f"Failed to decode image {filename}") from e
 
@@ -113,13 +125,18 @@ class GlyphDataset(Dataset):
             if idx < len(images):
                 img = images[idx].permute(1, 2, 0).numpy()
                 ax.imshow(img)
-                ax.text(4, 12, f"Val: {original_values[idx]:.2f}\nClass: {labels[idx]}", fontsize=9, color='white', 
-                        bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
+
+                label_name = "Class" if self.mode == 'classification' else "Bin"
+                ax.text(
+                    4, 12,
+                    f"Val: {original_values[idx]:.2f}\n{label_name}: {labels[idx]}",
+                    fontsize=9, color='white',
+                    bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3')
+                )
             ax.axis('off')
 
         plt.tight_layout()
         plt.show()
-
 
 # --- Helper Functions ---
 def create_loader(dataset: Dataset, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0):
@@ -129,6 +146,13 @@ def create_loader(dataset: Dataset, batch_size: int = 32, shuffle: bool = True, 
 def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, silent: bool = False):
     try:
         images, labels, original_values = next(iter(loader))
+
+        # Detect mode automatically from dataset
+        if hasattr(loader.dataset, 'mode'):
+            mode = loader.dataset.mode.lower()  # force lowercase in case
+            label_name = "Class" if mode == 'classification' else "Bin"
+        else:
+            label_name = "Label"
 
         if len(images) > max_images:
             images = images[:max_images]
@@ -145,9 +169,9 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
             if idx < len(images):
                 img = images[idx].permute(1, 2, 0).numpy()
                 ax.imshow(img)
-                ax.text(4, 12, f"Val: {original_values[idx]:.2f}\nClass: {labels[idx]}", fontsize=9, color='white',
+                ax.text(4, 12, f"Val: {original_values[idx]:.2f}\n{label_name}: {labels[idx]}",
+                        fontsize=9, color='white',
                         bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
-
             ax.axis('off')
 
         plt.tight_layout()
@@ -156,6 +180,8 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
     except Exception as e:
         if not silent:
             print(f"Error visualizing batch: {e}")
+
+
 
 def get_label_class(value, num_classes=10):
     value = max(0.0, min(100.0, value))
