@@ -25,6 +25,9 @@ class GlyphDataset(Dataset):
         self.stride = stride
         self.mode = mode.lower()
 
+        if self.mode == 'regression':
+            self.bins = None
+
         if transform:
             self.transform = transform
         else:
@@ -76,7 +79,7 @@ class GlyphDataset(Dataset):
         if self.mode == 'classification' :
             label = get_label_class(value, self.bins)
         elif self.mode == 'regression':
-            label = self._continuous_to_bin(value / 100.0, self.bins)  # scale the bin to [0,1]
+            label = torch.tensor([value / 100.0], dtype=torch.float32)  # normalize to [0,1]
         else:
             raise ValueError(f"Image data not found for file: {filename}")
     
@@ -126,13 +129,18 @@ class GlyphDataset(Dataset):
                 img = images[idx].permute(1, 2, 0).numpy()
                 ax.imshow(img)
 
-                label_name = "Class" if self.mode == 'classification' else "Bin"
+                if self.mode == 'regression':
+                    label_text = f"Target: {labels[idx].item():.2f}"  # Continuous target
+                else:
+                    label_text = f"Class: {labels[idx]}"  # Classification mode
+
                 ax.text(
                     4, 12,
-                    f"Val: {original_values[idx]:.2f}\n{label_name}: {labels[idx]}",
+                    f"Val: {original_values[idx]:.2f}\n{label_text}",
                     fontsize=9, color='white',
                     bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3')
                 )
+
             ax.axis('off')
 
         plt.tight_layout()
@@ -147,16 +155,16 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
     try:
         images, labels, original_values = next(iter(loader))
 
-        # Detect mode automatically from dataset
+        # Detect mode
         if hasattr(loader.dataset, 'mode'):
-            mode = loader.dataset.mode.lower()  # force lowercase in case
-            label_name = "Class" if mode == 'classification' else "Bin"
+            mode = loader.dataset.mode.lower()
         else:
-            label_name = "Label"
+            mode = 'classification'
 
         if len(images) > max_images:
             images = images[:max_images]
             labels = labels[:max_images]
+            original_values = original_values[:max_images]
             if not silent:
                 print(f"Displaying first {max_images} images from batch of {len(images)}")
 
@@ -169,9 +177,16 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
             if idx < len(images):
                 img = images[idx].permute(1, 2, 0).numpy()
                 ax.imshow(img)
-                ax.text(4, 12, f"Val: {original_values[idx]:.2f}\n{label_name}: {labels[idx]}",
+
+                if mode == 'regression':
+                    label_text = f"Target: {labels[idx].item():.2f}"
+                else:
+                    label_text = f"Class: {labels[idx]}"
+
+                ax.text(4, 12, f"Val: {original_values[idx]:.2f}\n{label_text}",
                         fontsize=9, color='white',
                         bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
+
             ax.axis('off')
 
         plt.tight_layout()
@@ -180,6 +195,7 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
     except Exception as e:
         if not silent:
             print(f"Error visualizing batch: {e}")
+
 
 
 
