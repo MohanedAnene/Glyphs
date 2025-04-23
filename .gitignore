@@ -3,6 +3,7 @@ data.zip
 token.pickle
 credentials.json
 glyphs.zip
+wandb
 
 *.pyc
 
@@ -180,3 +181,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+

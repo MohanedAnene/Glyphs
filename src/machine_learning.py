@@ -79,7 +79,7 @@ class GlyphDataset(Dataset):
         if self.mode == 'classification' :
             label = get_label_class(value, self.bins)
         elif self.mode == 'regression':
-            label = torch.tensor([value], dtype=torch.float32)  
+            label = torch.tensor([value / 100.0], dtype=torch.float32)  # normalize to [0,1]
         else:
             raise ValueError(f"Image data not found for file: {filename}")
     
