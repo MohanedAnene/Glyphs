@@ -66,10 +66,10 @@ class GlyphDataset(Dataset):
     def __len__(self):
         return len(self.samples)
     
-    def _continuous_to_bin(self, value, num_bins):
-        value = max(min(value, 1.0), 0.0)  # Clamp value into [0,1]
-        bin_index = int(value * num_bins)  # Scale to bins
-        return min(bin_index, num_bins - 1)  # Cap at last bin
+    # def _continuous_to_bin(self, value, num_bins):
+    #     value = max(min(value, 1.0), 0.0)  # Clamp value into [0,1]
+    #     bin_index = int(value * num_bins)  # Scale to bins
+    #     return min(bin_index, num_bins - 1)  # Cap at last bin
 
     def __getitem__(self, idx):
         sample = self.samples[idx]
