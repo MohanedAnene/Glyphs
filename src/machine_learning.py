@@ -18,15 +18,11 @@ import itertools
 
 # --- Glyph Dataset ---
 class GlyphDataset(Dataset):
-    def __init__(self, zip_path, resize=None, split='train', transform=None, bins=10, stride=1, mode='classification'):
+    def __init__(self, zip_path, resize=None, split='train', transform=None, stride=1):
         self.resize = resize
         self.split = split
-        self.bins = bins
         self.stride = stride
-        self.mode = mode.lower()
 
-        if self.mode == 'regression':
-            self.bins = None
 
         if transform:
             self.transform = transform
@@ -76,21 +72,13 @@ class GlyphDataset(Dataset):
         filename = sample['file']
         value = sample['value']
 
-        if self.mode == 'classification' :
-            label = get_label_class(value, self.bins)
-        elif self.mode == 'regression':
-            label = torch.tensor([value / 100.0], dtype=torch.float32)  # normalize to [0,1]
-        else:
-            raise ValueError(f"Image data not found for file: {filename}")
-    
-
         image_bytes = self.image_data.get(filename)
         if image_bytes is None:
             raise FileNotFoundError(f"Image data not found for file: {filename}")
 
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-            return self.transform(image), label, value
+            return self.transform(image), value
         except Exception as e:
             raise RuntimeError(f"Failed to decode image {filename}") from e
 
@@ -109,14 +97,12 @@ class GlyphDataset(Dataset):
 
         indices = random.sample(range(len(self)), num)
         images = []
-        labels = []
-        original_values = []
+        values = []
 
         for i in indices:
-            image, label, original = self[i]
+            image, value = self[i]  # now you only return (image, value)
             images.append(image)
-            labels.append(label)
-            original_values.append(original)
+            values.append(value)
 
         nrow = min(5, num)
         ncol = math.ceil(num / nrow)
@@ -129,14 +115,9 @@ class GlyphDataset(Dataset):
                 img = images[idx].permute(1, 2, 0).numpy()
                 ax.imshow(img)
 
-                if self.mode == 'regression':
-                    label_text = f"Target: {labels[idx].item():.2f}"  # Continuous target
-                else:
-                    label_text = f"Class: {labels[idx]}"  # Classification mode
-
                 ax.text(
                     4, 12,
-                    f"Val: {original_values[idx]:.2f}\n{label_text}",
+                    f"Value: {values[idx]:.2f}",  # Always just display the continuous value
                     fontsize=9, color='white',
                     bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3')
                 )
@@ -146,25 +127,19 @@ class GlyphDataset(Dataset):
         plt.tight_layout()
         plt.show()
 
+
 # --- Helper Functions ---
 def create_loader(dataset: Dataset, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
                       pin_memory=True if torch.cuda.is_available() else False)
 
-def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, silent: bool = False):
+def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, silent: bool=False):
     try:
-        images, labels, original_values = next(iter(loader))
-
-        # Detect mode
-        if hasattr(loader.dataset, 'mode'):
-            mode = loader.dataset.mode.lower()
-        else:
-            mode = 'classification'
+        images, values = next(iter(loader)) 
 
         if len(images) > max_images:
             images = images[:max_images]
-            labels = labels[:max_images]
-            original_values = original_values[:max_images]
+            values = values[:max_images]
             if not silent:
                 print(f"Displaying first {max_images} images from batch of {len(images)}")
 
@@ -177,15 +152,12 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
             if idx < len(images):
                 img = images[idx].permute(1, 2, 0).numpy()
                 ax.imshow(img)
-
-                if mode == 'regression':
-                    label_text = f"Target: {labels[idx].item():.2f}"
-                else:
-                    label_text = f"Class: {labels[idx]}"
-
-                ax.text(4, 12, f"Val: {original_values[idx]:.2f}\n{label_text}",
-                        fontsize=9, color='white',
-                        bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
+                ax.text(
+                    4, 12, 
+                    f"Value: {values[idx]:.2f}", 
+                    fontsize=9, color='white',
+                    bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3')
+                )
 
             ax.axis('off')
 
@@ -195,6 +167,7 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
     except Exception as e:
         if not silent:
             print(f"Error visualizing batch: {e}")
+
 
 
 
@@ -261,39 +234,65 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     fig.tight_layout()
     return ax
 
+def to_class_label(value, num_classes):
+    value = max(0.0, min(100.0, value))
+    bin_width = 100.0 / num_classes
+    class_idx = int(value / bin_width)
+    return min(class_idx, num_classes - 1)
+
 def show_incorrect_predictions(model, loader, num_classes=10, max_display=10, device=None):
     incorrect_samples = []
 
+    model.eval()
     with torch.no_grad():
-        for images, labels, values in loader:
+        for images, values in loader:
             images = images.to(device)
-            labels = labels.to(device)
+
             outputs = model(images)
-            _, preds = torch.max(outputs, 1)
 
-            for i in range(images.size(0)):
-                if preds[i] != labels[i]:
-                    val = values[i].item()
-                    pred_class = preds[i].item()
+            # Detect if it's regression or classification
+            if outputs.shape[1] == 1:  # Regression case (1 output per image)
+                preds = outputs.squeeze(1)  # shape [batch]
+                preds = preds.cpu()
+                values = torch.tensor(values)  # real values
 
-                    bin_width = 100.0 / num_classes
-                    left = pred_class * bin_width
-                    right = (pred_class + 1) * bin_width
-
-                    # Compute closest boundary difference
-                    diff_to_left = abs(val - left)
-                    diff_to_right = abs(val - right)
-                    closest_diff = min(diff_to_left, diff_to_right)
-
+                # Compute absolute error
+                errors = torch.abs(preds - values)
+                
+                for i in range(images.size(0)):
                     incorrect_samples.append({
                         'image': images[i].cpu(),
-                        'value': val,
-                        'pred_class': pred_class,
-                        'closest_diff': closest_diff
+                        'true_value': values[i].item(),
+                        'pred_value': preds[i].item(),
+                        'abs_error': errors[i].item()
                     })
+                    
+            else:  # Classification case (multi-class)
+                _, preds = torch.max(outputs, 1)
+                labels = torch.tensor(
+                    [to_class_label(v, num_classes) for v in values], dtype=torch.long, device=device
+                )
 
-                    if len(incorrect_samples) >= max_display:
-                        break
+                for i in range(images.size(0)):
+                    if preds[i] != labels[i]:
+                        val = values[i].item()
+                        pred_class = preds[i].item()
+
+                        bin_width = 100.0 / num_classes
+                        left = pred_class * bin_width
+                        right = (pred_class + 1) * bin_width
+
+                        diff_to_left = abs(val - left)
+                        diff_to_right = abs(val - right)
+                        closest_diff = min(diff_to_left, diff_to_right)
+
+                        incorrect_samples.append({
+                            'image': images[i].cpu(),
+                            'true_value': val,
+                            'pred_class': pred_class,
+                            'closest_diff': closest_diff
+                        })
+
             if len(incorrect_samples) >= max_display:
                 break
 
@@ -301,6 +300,7 @@ def show_incorrect_predictions(model, loader, num_classes=10, max_display=10, de
         print("No incorrect predictions found.")
         return
 
+    # --- Visualization ---
     nrow = 5
     ncol = math.ceil(len(incorrect_samples) / nrow)
     fig, axes = plt.subplots(ncol, nrow, figsize=(nrow * 2, ncol * 2))
@@ -311,13 +311,24 @@ def show_incorrect_predictions(model, loader, num_classes=10, max_display=10, de
             sample = incorrect_samples[idx]
             img = sample['image'].permute(1, 2, 0).numpy()
             ax.imshow(img)
-            ax.text(
-                4, 12,
-                f"Val: {sample['value']:.2f}\nPred: {sample['pred_class']}\nDiff to boundary: {sample['closest_diff']:.2f}",
-                fontsize=9, color='white',
-                bbox=dict(facecolor='red', alpha=0.7, boxstyle='round,pad=0.3')
-            )
+
+            if 'pred_value' in sample:  # Regression display
+                ax.text(
+                    4, 12,
+                    f"True: {sample['true_value']:.2f}\nPred: {sample['pred_value']:.2f}\nAbs Error: {sample['abs_error']:.2f}",
+                    fontsize=9, color='white',
+                    bbox=dict(facecolor='blue', alpha=0.7, boxstyle='round,pad=0.3')
+                )
+            else:  # Classification display
+                ax.text(
+                    4, 12,
+                    f"Val: {sample['true_value']:.2f}\nPred class: {sample['pred_class']}\nClosest Diff: {sample['closest_diff']:.2f}",
+                    fontsize=9, color='white',
+                    bbox=dict(facecolor='red', alpha=0.7, boxstyle='round,pad=0.3')
+                )
+
         ax.axis('off')
 
     plt.tight_layout()
     plt.show()
+
