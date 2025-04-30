@@ -245,16 +245,7 @@ def to_class_label(value, num_classes):
     return min(class_idx, num_classes - 1)
 
 def show_incorrect_predictions(model, loader, bin_centers, max_display=10, device=None):
-    """
-    Displays images where the model's predicted value (via binned regression) differs most from the ground truth.
 
-    Args:
-        model: Trained PyTorch model.
-        loader: DataLoader to get samples from.
-        bin_centers: Tensor of bin center values.
-        max_display: Max number of incorrect predictions to display.
-        device: Torch device ('cpu' or 'cuda').
-    """
     import matplotlib.pyplot as plt
     import math
     import torch.nn.functional as F
