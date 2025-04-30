@@ -18,11 +18,13 @@ import itertools
 
 # --- Glyph Dataset ---
 class GlyphDataset(Dataset):
-    def __init__(self, zip_path, resize=None, split='train', transform=None, stride=1):
+    def __init__(self, zip_path, resize=None, split='train', transform=None, stride=1,
+                 augmentation_rot=0, augmentation_tran=0.0):
         self.resize = resize
         self.split = split
         self.stride = stride
-
+        self.augmentation_rot = augmentation_rot
+        self.augmentation_tran = augmentation_tran
 
         if transform:
             self.transform = transform
@@ -42,12 +44,10 @@ class GlyphDataset(Dataset):
             if split in self.metadata['samples']:
                 self.samples = self.metadata['samples'][split]
             else:
-                raise ValueError(f"Split '{split}' not found in dataset metadata. Available splits: {list(self.metadata['samples'].keys())}")
-            
+                raise ValueError(f"Split '{split}' not found in dataset metadata.")
+
             if self.stride > 1:
-                self.samples = self.samples[self.stride - 1 :: self.stride]
-
-
+                self.samples = self.samples[self.stride - 1::self.stride]
 
             self.image_data = {}
             for sample in self.samples:
@@ -62,6 +62,7 @@ class GlyphDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
+
     def __getitem__(self, idx):
         sample = self.samples[idx]
         filename = sample['file']
@@ -73,9 +74,53 @@ class GlyphDataset(Dataset):
 
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-            return self.transform(image), value
+
+            # Convert to numpy and find object bounding box
+            image_np = np.array(image)
+            gray = np.mean(image_np, axis=2)
+            mask = gray > 10  # Threshold to detect non-background (adjust if needed)
+
+            coords = np.argwhere(mask)
+            if coords.size > 0:
+                y0, x0 = coords.min(axis=0)
+                y1, x1 = coords.max(axis=0) + 1
+
+                object_crop = image.crop((x0, y0, x1, y1))
+
+                # === Rotation with WHITE background ===
+                if self.augmentation_rot > 0:
+                    angle = random.uniform(-self.augmentation_rot, self.augmentation_rot)
+                    object_crop = object_crop.rotate(
+                        angle, 
+                        resample=Image.BICUBIC, 
+                        expand=True, 
+                        fillcolor=(255, 255, 255)  # White background
+                    )
+
+                # === Translation ===
+                if self.augmentation_tran > 0.0:
+                    width, height = image.size
+                    max_shift = int(width * self.augmentation_tran)
+                    shift_x = random.randint(-max_shift, max_shift)
+                else:
+                    shift_x = 0
+
+                # Paste onto WHITE canvas (not black)
+                width, height = image.size
+                new_image = Image.new("RGB", (width, height), (255, 255, 255))  # White canvas
+
+                paste_w, paste_h = object_crop.size
+                paste_x = min(max(0, x0 + shift_x), width - paste_w)
+                paste_y = max(0, y0 - (paste_h - (y1 - y0)) // 2)  # Center vertically
+
+                new_image.paste(object_crop, (paste_x, paste_y))
+                image = new_image
+
+            image = self.transform(image)
+            return image, value
+
         except Exception as e:
-            raise RuntimeError(f"Failed to decode image {filename}") from e
+            raise RuntimeError(f"Failed to process image {filename}: {str(e)}")
 
     def show(self, num=10):
         if num <= 0:
@@ -85,17 +130,14 @@ class GlyphDataset(Dataset):
             raise ValueError("Dataset contains no samples")
 
         if num > len(self):
-            raise ValueError(
-                f"Requested {num} samples but dataset only contains {len(self)}. "
-                "Please request fewer samples or add more data to the dataset."
-            )
+            raise ValueError(f"Requested {num} samples but dataset only contains {len(self)}.")
 
         indices = random.sample(range(len(self)), num)
         images = []
         values = []
 
         for i in indices:
-            image, value = self[i]  # now you only return (image, value)
+            image, value = self[i]
             images.append(image)
             values.append(value)
 
@@ -109,14 +151,8 @@ class GlyphDataset(Dataset):
             if idx < len(images):
                 img = images[idx].permute(1, 2, 0).numpy()
                 ax.imshow(img)
-
-                ax.text(
-                    4, 12,
-                    f"Value: {values[idx]:.2f}",  # Always just display the continuous value
-                    fontsize=9, color='white',
-                    bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3')
-                )
-
+                ax.text(4, 12, f"Value: {values[idx]:.2f}", fontsize=9, color='white',
+                        bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
             ax.axis('off')
 
         plt.tight_layout()
