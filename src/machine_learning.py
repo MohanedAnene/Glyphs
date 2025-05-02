@@ -117,7 +117,7 @@ class GlyphDataset(Dataset):
                 image = new_image
 
             image = self.transform(image)
-            return image, value
+            return image, torch.tensor(value, dtype=torch.float32)
 
         except Exception as e:
             raise RuntimeError(f"Failed to process image {filename}: {str(e)}")
