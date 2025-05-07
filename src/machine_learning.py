@@ -74,47 +74,26 @@ class GlyphDataset(Dataset):
 
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+            width, height = image.size
 
-            # Convert to numpy and find object bounding box
-            image_np = np.array(image)
-            gray = np.mean(image_np, axis=2)
-            mask = gray > 10  # Threshold to detect non-background (adjust if needed)
+            # === Apply X-axis shift (simplified) ===
+            if self.augmentation_tran != 0:
+                # Calculate pixel shift (positive = right, negative = left)
+                shift_x = int(width * self.augmentation_tran)
+                
+                # Create a new white canvas
+                shifted_image = Image.new("RGB", (width, height), (255, 255, 255))
+                
+                # Paste original image at the shifted position
+                paste_x = shift_x  # Directly use shift (no centering)
+                shifted_image.paste(image, (paste_x, 0))  # Y-coordinate always 0
+                
+                image = shifted_image
 
-            coords = np.argwhere(mask)
-            if coords.size > 0:
-                y0, x0 = coords.min(axis=0)
-                y1, x1 = coords.max(axis=0) + 1
-
-                object_crop = image.crop((x0, y0, x1, y1))
-
-                # === Rotation with WHITE background ===
-                if self.augmentation_rot > 0:
-                    angle = random.uniform(-self.augmentation_rot, self.augmentation_rot)
-                    object_crop = object_crop.rotate(
-                        angle, 
-                        resample=Image.BICUBIC, 
-                        expand=True, 
-                        fillcolor=(255, 255, 255)  # White background
-                    )
-
-                # === Translation ===
-                if self.augmentation_tran > 0.0:
-                    width, height = image.size
-                    max_shift = int(width * self.augmentation_tran)
-                    shift_x = random.randint(-max_shift, max_shift)
-                else:
-                    shift_x = 0
-
-                # Paste onto WHITE canvas (not black)
-                width, height = image.size
-                new_image = Image.new("RGB", (width, height), (255, 255, 255))  # White canvas
-
-                paste_w, paste_h = object_crop.size
-                paste_x = min(max(0, x0 + shift_x), width - paste_w)
-                paste_y = max(0, y0 - (paste_h - (y1 - y0)) // 2)  # Center vertically
-
-                new_image.paste(object_crop, (paste_x, paste_y))
-                image = new_image
+            # Apply rotation if needed (optional)
+            if self.augmentation_rot > 0:
+                angle = random.uniform(-self.augmentation_rot, self.augmentation_rot)
+                image = image.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
 
             image = self.transform(image)
             return image, torch.tensor(value, dtype=torch.float32)
