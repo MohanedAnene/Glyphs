@@ -10,6 +10,7 @@ from torch.optim.lr_scheduler import StepLR
 import hydra
 from omegaconf import DictConfig, OmegaConf
 import os
+from datetime import datetime
 
 
 class GlyphClassifier(nn.Module):
@@ -209,6 +210,44 @@ def main(config: DictConfig):
     print(df_val)
     print(f"\n Final Test MSE: {mse:.4f}")
     print(f" Final Test MAE: {mae:.4f}")
+    results = {
+            'experiment_name': experiment_name,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'config': dict(config_dict),  # Save all config parameters
+            'image_resolution': config.image_resolution,
+            'num_bins': config.num_bins,
+            'epochs': config.epochs,
+            'batch_size': config.batch_size,
+            'learning_rate': config.learning_rate,
+            'final_train_loss': epoch_train_losses[-1],
+            'final_val_loss': val_losses[-1],
+            'test_mse': mse,
+            'test_mae': mae,
+            'predictions': predictions,
+            'ground_truths': ground_truths,
+            'sample_ids': sample_ids
+    }
+
+    # Create dataframe
+    results_df = pd.DataFrame([results])
+    
+    # Ensure output directory exists
+    os.makedirs('experiment_results', exist_ok=True)
+    
+    # Generate filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_filename = f"experiment_results/regression_{timestamp}"
+    
+    # Save to CSV (without large arrays)
+    csv_df = results_df.drop(['predictions', 'ground_truths', 'sample_ids'], axis=1)
+    csv_df.to_csv(f'{base_filename}_summary.csv', index=False)
+    
+    # Save the full results with arrays for analysis
+    results_df.to_pickle(f'{base_filename}_full.pkl')
+    
+    print(f"\nResults saved to:")
+    print(f"- {base_filename}_summary.csv")
+    print(f"- {base_filename}_full.pkl")
 
     wandb.finish()
 
