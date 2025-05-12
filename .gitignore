@@ -4,7 +4,7 @@ token.pickle
 credentials.json
 glyphs.zip
 wandb
-
+outputs
 *.pyc
 
 # Byte-compiled / optimized / DLL files

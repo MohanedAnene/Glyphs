@@ -41,8 +41,15 @@ class GlyphClassifier(nn.Module):
         x = self.classifier(x)     
         return x
 
-@hydra.main(version_base=None, config_path="configs", config_name="config")
+@hydra.main(version_base=None, config_path="C:/Users/mohanned/Desktop/Mohaned/Glyphs/cfgs", config_name="config")
 def main(config: DictConfig):
+    # Convert config to dict and fix any problematic types
+    config_dict = OmegaConf.to_container(config, resolve=True)
+    
+    # Ensure image_resolution is a list (not tuple)
+    if 'image_resolution' in config_dict:
+        config_dict['image_resolution'] = list(config_dict['image_resolution'])
+
     # Getting the dataset
     dataset_file = config.dataset
     test_file = config.test
@@ -78,7 +85,8 @@ def main(config: DictConfig):
     wandb.init(
         project="glyph-regression",
         name=experiment_name,
-        config=config
+        config=config_dict,
+        settings=wandb.Settings(start_method="thread", mode="online")
     )
     wandb.watch(model, log="all", log_freq=10)
     
@@ -153,11 +161,6 @@ def main(config: DictConfig):
             xname="Epoch"
         )
     })
-
-    # Local plot (optional)
-    ML.plot_training_loss(train_losses, val_losses)
-
-
     # --- Final Test Evaluation ---
 
     model.eval()
