@@ -1,0 +1,20 @@
+architecture: CNN-Glyph
+
+dataset: data/simple-star.zip
+test: data/simple-star-validation.zip
+
+epochs: 10
+batch_size: 64
+learning_rate: 0.0005
+loss_fn: MSELoss
+optimizer: Adam
+
+image_resolution: [128, 128]
+
+regression: true
+num_bins: 20
+
+rotation: 0
+translation: -0.4
+
+stride: 0
