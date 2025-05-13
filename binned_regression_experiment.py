@@ -78,7 +78,7 @@ def main(config: DictConfig):
 
     scheduler = StepLR(optimizer, step_size=5, gamma=0.5)  # Reduce LR by half every 5 epochs
 
-    experiment_name = f"exp-SimpleStar-{config.image_resolution[0]}x{config.image_resolution[1]}-{config.num_bins}bins-BinnedRegression-withvalidation"
+    experiment_name = f"exp-SimpleStar-{config.image_resolution[0]}x{config.image_resolution[1]}-{config.num_bins}bins-BinnedRegression"
 
     print(f"Experiment name: {experiment_name}")
 
@@ -191,63 +191,44 @@ def main(config: DictConfig):
     ground_truths = np.array(ground_truths)
     mse = np.mean((predictions - ground_truths)**2)
     mae = np.mean(np.abs(predictions - ground_truths))
-
+    
+    print(f"\n Final Test MSE: {mse:.4f}")
+    print(f" Final Test MAE: {mae:.4f}")
+    
     # --- Log to W&B ---
     wandb.log({
         "test_mse": mse,
         "test_mae": mae
     })
 
-    # Dataframe creation
-    df_val = pd.DataFrame({
-        "sample_id": sample_ids,
-        "ground_truth": ground_truths,
-        "predicted_value": predictions
-    })
-    df_val['error'] = np.abs(df_val['ground_truth'] - df_val['predicted_value'])
+    # Log final results as W&B Table
 
+    # Get current timestamp
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    print(df_val)
-    print(f"\n Final Test MSE: {mse:.4f}")
-    print(f" Final Test MAE: {mae:.4f}")
-    results = {
-            'experiment_name': experiment_name,
-            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            'config': dict(config_dict),  # Save all config parameters
-            'image_resolution': config.image_resolution,
-            'num_bins': config.num_bins,
-            'epochs': config.epochs,
-            'batch_size': config.batch_size,
-            'learning_rate': config.learning_rate,
-            'final_train_loss': epoch_train_losses[-1],
-            'final_val_loss': val_losses[-1],
-            'test_mse': mse,
-            'test_mae': mae,
-            'predictions': predictions,
-            'ground_truths': ground_truths,
-            'sample_ids': sample_ids
-    }
+    # One-row summary table for this experiment run
+    summary_table = wandb.Table(columns=[
+        "experiment_name", "timestamp", "image_resolution", "num_bins",
+        "epochs", "batch_size", "learning_rate",
+        "final_train_loss", "final_val_loss", "test_mse", "test_mae"
+    ])
 
-    # Create dataframe
-    results_df = pd.DataFrame([results])
-    
-    # Ensure output directory exists
-    os.makedirs('experiment_results', exist_ok=True)
-    
-    # Generate filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    base_filename = f"experiment_results/regression_{timestamp}"
-    
-    # Save to CSV (without large arrays)
-    csv_df = results_df.drop(['predictions', 'ground_truths', 'sample_ids'], axis=1)
-    csv_df.to_csv(f'{base_filename}_summary.csv', index=False)
-    
-    # Save the full results with arrays for analysis
-    results_df.to_pickle(f'{base_filename}_full.pkl')
-    
-    print(f"\nResults saved to:")
-    print(f"- {base_filename}_summary.csv")
-    print(f"- {base_filename}_full.pkl")
+    summary_table.add_data(
+        experiment_name,
+        timestamp,
+        str(config.image_resolution),
+        config.num_bins,
+        config.epochs,
+        config.batch_size,
+        config.learning_rate,
+        epoch_train_losses[-1],
+        val_losses[-1],
+        mse,
+        mae
+    )
+
+    # Log to W&B
+    wandb.log({"experiment_summary": summary_table})
 
     wandb.finish()
 

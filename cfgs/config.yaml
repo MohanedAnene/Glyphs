@@ -18,3 +18,10 @@ rotation: 0
 translation: -0.4
 
 stride: 0
+
+hydra:
+  output_subdir: null
+  job:
+    chdir: false
+  run:
+    dir: .
