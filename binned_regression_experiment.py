@@ -66,7 +66,7 @@ def main(config: DictConfig):
 
 
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device(f"cuda:{config.cuda}" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     bin_centers = torch.linspace(0, 100, config.num_bins + 1, device=device)[:-1] + 50 / config.num_bins
