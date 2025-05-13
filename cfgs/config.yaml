@@ -16,7 +16,10 @@ regression: true
 num_bins: 20
 
 rotation: 0
-translation: -0.4
+translation: 0
+
+stepsize: 0
+gamma: 0
 
 stride: 0
 

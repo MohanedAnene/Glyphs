@@ -76,7 +76,7 @@ def main(config: DictConfig):
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    scheduler = StepLR(optimizer, step_size=5, gamma=0.5)  # Reduce LR by half every 5 epochs
+    scheduler = StepLR(optimizer, step_size=config.stepsize, gamma=config.gamma)  
 
     experiment_name = f"exp-SimpleStar-{config.image_resolution[0]}x{config.image_resolution[1]}-{config.num_bins}bins-BinnedRegression"
 
