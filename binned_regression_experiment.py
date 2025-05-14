@@ -78,7 +78,7 @@ def main(config: DictConfig):
 
     scheduler = StepLR(optimizer, step_size=config.stepsize, gamma=config.gamma)  
 
-    experiment_name = f"exp-SimpleStar-{config.image_resolution[0]}x{config.image_resolution[1]}-{config.num_bins}bins-BinnedRegression"
+    experiment_name = f"exp-SimpleStar-{config.image_resolution[0]}x{config.image_resolution[1]}-{config.num_bins}bins-BR"
 
     print(f"Experiment name: {experiment_name}")
 
