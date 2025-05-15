@@ -14,6 +14,7 @@ class GlyphAgent:
         if not os.path.exists(model_filename):
             raise FileNotFoundError(f"Model file '{model_filename}' does not exist.")
         self.model = torch.load(model_filename, map_location=self.device)
+        self.model.to(self.device)
         self.model.eval()
 
         # Load glyphs
