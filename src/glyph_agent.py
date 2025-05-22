@@ -1,56 +1,86 @@
 import os
+import io
 import torch
 import zipfile
 import json
-from src.machine_learning import GlyphDataset
+from PIL import Image
+from torchvision import transforms
 from src.Model_BR import GlyphClassifier
 
 
 class GlyphAgent:
-    def __init__(self, glyph_filename: str, model_filename: str, name: str = None, device='cpu'):
+    def __init__(self, glyph_data, model_filename: str, name: str = None, device='cpu'):
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
-        self.glyph_filename = glyph_filename
-        self.name = name if name else os.path.basename(glyph_filename)
+        self.name = name or "UnnamedGlyphSet"
 
-        # === Load the model architecture ===
+        # === Load model ===
         self.model = GlyphClassifier(NUM_bins=5, resolution=(128, 128))
         state_dict = torch.load(model_filename, map_location=self.device)
         self.model.load_state_dict(state_dict)
         self.model.to(self.device)
         self.model.eval()
 
-        # === Set up bin centers (must match training config) ===
-        self.bin_centers = torch.linspace(0, 100, 5 + 1, device=self.device)[:-1] + 50 / 5
+        # === Bin centers (binned regression with 5 bins) ===
+        self.bin_centers = torch.linspace(0, 100, 6, device=self.device)[:-1] + 50 / 5
 
-        # === Load glyph dataset ===
-        if not os.path.exists(glyph_filename):
-            raise FileNotFoundError(f"Glyph file '{glyph_filename}' not found.")
+        # === Load ZIP: from path or BytesIO ===
+        if isinstance(glyph_data, (str, os.PathLike)):
+            with open(glyph_data, 'rb') as f:
+                self.zip_buffer = io.BytesIO(f.read())
+        elif isinstance(glyph_data, io.BytesIO):
+            self.zip_buffer = glyph_data
+        else:
+            raise ValueError("glyph_data must be a file path or a BytesIO object")
 
-        self.dataset = GlyphDataset(glyph_filename, split='test', resize=(128, 128))
-        self.samples = self.dataset.samples
-
-        # === Read the JSON metadata from zip ===
-        with zipfile.ZipFile(glyph_filename, 'r') as zf:
-            with zf.open('_dataset-info.json') as f:
+        # === Parse metadata.json and load image bytes ===
+        with zipfile.ZipFile(self.zip_buffer, 'r') as zf:
+            if 'metadata.json' not in zf.namelist():
+                raise RuntimeError("ZIP archive does not contain 'metadata.json'")
+            with zf.open('metadata.json') as f:
                 metadata = json.load(f)
 
-        # Combine both train and test samples into a flat list
-        train_samples = metadata["samples"].get("train", [])
-        test_samples = metadata["samples"].get("test", [])
-        all_samples = train_samples + test_samples
+            if "images" not in metadata:
+                raise RuntimeError("'metadata.json' does not contain 'images' key")
 
-        # Map rounded value to filename
+            self.samples = [
+                {"file": fname, "value": float(val)}
+                for fname, val in metadata["images"]
+            ]
+
+            # Load image bytes
+            self.image_data = {}
+            for sample in self.samples:
+                fname = sample['file']
+                try:
+                    with zf.open(fname) as img_file:
+                        self.image_data[fname] = img_file.read()
+                except Exception as e:
+                    print(f"[WARNING] Could not read image {fname}: {e}")
+                    self.image_data[fname] = None
+
+        # === Preprocess all images ===
+        self.transform = transforms.Compose([
+            transforms.Resize((128, 128)),
+            transforms.ToTensor()
+        ])
+        self.processed_samples = []
+        for sample in self.samples:
+            fname = sample["file"]
+            value = sample["value"]
+            raw_bytes = self.image_data.get(fname)
+            if raw_bytes is None:
+                continue
+            image = Image.open(io.BytesIO(raw_bytes)).convert("RGB")
+            tensor = self.transform(image)
+            self.processed_samples.append((tensor, value))
+
+        # === Mapping from value ↔ file and file ↔ index ===
         self.value_to_filename = {
-            round(sample["value"], 2): sample["file"]
-            for sample in all_samples
+            round(s["value"], 2): s["file"] for s in self.samples
         }
-
-        # Map filename to dataset index (from GlyphDataset)
         self.filename_to_index = {
-            sample['file']: idx for idx, sample in enumerate(self.samples)
+            s["file"]: idx for idx, s in enumerate(self.samples)
         }
-
-        print(f"[{self.name}] Agent initialized with {len(self.samples)} glyphs.")
 
     def get_response(self, task: dict, verbose=False) -> dict:
         x1 = task['x1']
@@ -65,8 +95,8 @@ class GlyphAgent:
         idx1 = self.filename_to_index[file1]
         idx2 = self.filename_to_index[file2]
 
-        image1, _ = self.dataset[idx1]
-        image2, _ = self.dataset[idx2]
+        image1, _ = self.processed_samples[idx1]
+        image2, _ = self.processed_samples[idx2]
 
         images = torch.stack([image1, image2]).to(self.device)
         with torch.no_grad():
@@ -99,4 +129,3 @@ class GlyphAgent:
             'nearest_x1': nearest_x1,
             'nearest_x2': nearest_x2
         }
-
