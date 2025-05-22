@@ -52,25 +52,22 @@ class GlyphAgent:
 
         print(f"[{self.name}] Agent initialized with {len(self.samples)} glyphs.")
 
-    def get_response(self, task: dict) -> dict:
+    def get_response(self, task: dict, verbose=False) -> dict:
         x1 = task['x1']
         x2 = task['x2']
 
-        # Find closest value matches
         nearest_x1 = min(self.value_to_filename.keys(), key=lambda v: abs(v - x1))
         nearest_x2 = min(self.value_to_filename.keys(), key=lambda v: abs(v - x2))
 
         file1 = self.value_to_filename[nearest_x1]
         file2 = self.value_to_filename[nearest_x2]
 
-        # Get dataset indices from filenames
         idx1 = self.filename_to_index[file1]
         idx2 = self.filename_to_index[file2]
 
         image1, _ = self.dataset[idx1]
         image2, _ = self.dataset[idx2]
 
-        # Stack and send to model
         images = torch.stack([image1, image2]).to(self.device)
         with torch.no_grad():
             outputs = self.model(images)
@@ -79,7 +76,6 @@ class GlyphAgent:
             predictions = preds.cpu().numpy().flatten()
             v1, v2 = float(predictions[0]), float(predictions[1])
 
-        # Decide comparison
         if abs(v1 - v2) < 1e-3:
             choice = '=='
         elif v1 > v2:
@@ -87,11 +83,11 @@ class GlyphAgent:
         else:
             choice = '<'
 
-        # Clean formatted print
-        print(f"\n🧠 GlyphAgent: {self.name}")
-        print(f"   x1 = {x1:.2f} (closest: {nearest_x1:.2f}) → predicted value: {v1:.3f}")
-        print(f"   x2 = {x2:.2f} (closest: {nearest_x2:.2f}) → predicted value: {v2:.3f}")
-        print(f"=> Model decides: x1 {choice} x2\n")
+        if verbose:
+            print(f"\n🧠 GlyphAgent: {self.name}")
+            print(f"   x1 = {x1:.2f} (closest: {nearest_x1:.2f}) → predicted value: {v1:.3f}")
+            print(f"   x2 = {x2:.2f} (closest: {nearest_x2:.2f}) → predicted value: {v2:.3f}")
+            print(f"=> Model decides: x1 {choice} x2\n")
 
         return {
             'choice': choice,
@@ -103,3 +99,4 @@ class GlyphAgent:
             'nearest_x1': nearest_x1,
             'nearest_x2': nearest_x2
         }
+
