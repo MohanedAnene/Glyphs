@@ -137,42 +137,115 @@ class GlyphDataset(Dataset):
         plt.tight_layout()
         plt.show()
 
+class PairwiseGlyphDataset(GlyphDataset):
+    def __init__(self, zip_path, resize=None, split='train', transform=None, stride=1,
+                 augmentation_rot=0, augmentation_tran=0.0):
+        super().__init__(zip_path, resize, split, transform, stride, augmentation_rot, augmentation_tran)
+        self.pairs = []  # list of (index1, index2)
+
+    def make_pairs(self, N=1000, max_distance=100.0):
+        """
+        Creates a list of (idx1, idx2) pairs where abs(value1 - value2) <= max_distance.
+        Stores it in self.pairs and optionally limits to N total pairs.
+        """
+        self.pairs = []
+        all_indices = list(range(len(self.samples)))
+        values = [self.samples[i]['value'] for i in all_indices]
+
+        # Try random combinations until we reach N (or a safe max)
+        attempts = 0
+        max_attempts = N * 10  # Prevent infinite loops
+
+        while len(self.pairs) < N and attempts < max_attempts:
+            idx1, idx2 = random.sample(all_indices, 2)
+            val1, val2 = values[idx1], values[idx2]
+            if abs(val1 - val2) <= max_distance:
+                self.pairs.append((idx1, idx2))
+            attempts += 1
+
+        if len(self.pairs) < N:
+            print(f"[INFO] Only {len(self.pairs)} valid pairs found under max_distance={max_distance}")
+
+    def __len__(self):
+        if not self.pairs:
+            raise ValueError("No pairs generated. Call `.make_pairs()` before using this dataset.")
+        return len(self.pairs)
+
+    def __getitem__(self, index):
+        """
+        Returns (img1, val1, img2, val2) from precomputed pairs.
+        """
+        idx1, idx2 = self.pairs[index]
+        img1, val1 = super().__getitem__(idx1)
+        img2, val2 = super().__getitem__(idx2)
+        return img1, val1, img2, val2
 
 # --- Helper Functions ---
 def create_loader(dataset: Dataset, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
                       pin_memory=True if torch.cuda.is_available() else False)
 
-def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, silent: bool=False):
+def visualize_loader(loader: DataLoader, max_pairs: int = 8, silent: bool = False):
     try:
-        images, values = next(iter(loader)) 
+        batch = next(iter(loader))
 
-        if len(images) > max_images:
+        # Pairwise dataset: (img1s, val1s, img2s, val2s)
+        if isinstance(batch, (tuple, list)) and len(batch) == 4:
+            img1s, val1s, img2s, val2s = batch
+
+            # Limit number of pairs
+            total_pairs = min(max_pairs, len(img1s))
+            img1s = img1s[:total_pairs]
+            val1s = val1s[:total_pairs]
+            img2s = img2s[:total_pairs]
+            val2s = val2s[:total_pairs]
+
+            # One row per pair, two images per row
+            fig, axes = plt.subplots(total_pairs, 2, figsize=(4, total_pairs * 1.5))
+            if total_pairs == 1:
+                axes = [axes]  # Handle single pair as list
+
+            for i in range(total_pairs):
+                for j in range(2):
+                    ax = axes[i][j]
+                    img = (img1s[i] if j == 0 else img2s[i]).permute(1, 2, 0).numpy()
+                    val = val1s[i] if j == 0 else val2s[i]
+                    ax.imshow(img)
+                    ax.axis('off')
+                    ax.set_title(f"Value {j+1}: {val:.2f}", fontsize=9)
+
+                delta = abs(val1s[i].item() - val2s[i].item())
+                axes[i][0].text(4, 10, f"Δ = {delta:.2f}", fontsize=8, color='black',
+                                bbox=dict(facecolor='white', alpha=0.6, boxstyle='round'))
+
+            plt.tight_layout()
+            plt.show()
+
+        else:
+            # Normal dataset: (images, values)
+            images, values = batch
+
+            max_images = min(16, len(images))
             images = images[:max_images]
             values = values[:max_images]
-            if not silent:
-                print(f"Displaying first {max_images} images from batch of {len(images)}")
 
-        ncol = math.ceil(len(images) / nrow)
+            nrow = 4
+            ncol = math.ceil(len(images) / nrow)
 
-        fig, axes = plt.subplots(ncol, nrow, figsize=(nrow * 1, ncol * 1))
-        axes = axes.flatten() if max_images > 1 else [axes]
+            fig, axes = plt.subplots(ncol, nrow, figsize=(nrow * 1.5, ncol * 1.5))
+            axes = axes.flatten() if max_images > 1 else [axes]
 
-        for idx, ax in enumerate(axes):
-            if idx < len(images):
-                img = images[idx].permute(1, 2, 0).numpy()
-                ax.imshow(img)
-                ax.text(
-                    4, 12, 
-                    f"Value: {values[idx]:.2f}", 
-                    fontsize=9, color='white',
-                    bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3')
-                )
+            for idx, ax in enumerate(axes):
+                if idx < len(images):
+                    img = images[idx].permute(1, 2, 0).numpy()
+                    val = values[idx]
+                    ax.imshow(img)
+                    ax.text(4, 12, f"Value: {val:.2f}", fontsize=9, color='white',
+                            bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
+                ax.axis('off')
 
-            ax.axis('off')
-
-        plt.tight_layout()
-        plt.show()
+            plt.tight_layout()
+            plt.show()
 
     except Exception as e:
         if not silent:
@@ -182,11 +255,6 @@ def visualize_loader(loader: DataLoader, max_images: int = 16, nrow: int = 4, si
 
 
 
-def get_label_class(value, num_classes=10):
-    value = max(0.0, min(100.0, value))
-    bin_width = 100.0 / num_classes
-    class_idx = int(value / bin_width)
-    return min(class_idx, num_classes - 1)
 
 def plot_training_loss(train_losses, val_losses=None, title="Loss Over Time",
                        xlabel="Steps" , ylabel="Loss", figsize=(8, 4)):
@@ -222,7 +290,6 @@ def plot_training_loss(train_losses, val_losses=None, title="Loss Over Time",
     plt.show()
 
 
-
 def plot_confusion_matrix(y_true, y_pred, classes,
                           normalize=False,
                           title='Confusion Matrix',
@@ -253,11 +320,6 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     fig.tight_layout()
     return ax
 
-def to_class_label(value, num_classes):
-    value = max(0.0, min(100.0, value))
-    bin_width = 100.0 / num_classes
-    class_idx = int(value / bin_width)
-    return min(class_idx, num_classes - 1)
 
 def show_incorrect_predictions(model, loader, bin_centers, max_display=10, device=None):
 
