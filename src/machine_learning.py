@@ -19,12 +19,13 @@ import itertools
 # --- Glyph Dataset ---
 class GlyphDataset(Dataset):
     def __init__(self, zip_path, resize=None, split='train', transform=None, stride=1,
-                 augmentation_rot=0, augmentation_tran=0.0):
+                 augmentation_rot=0, augmentation_tran_x=0.0, augmentation_tran_y=0.0):
         self.resize = resize
         self.split = split
         self.stride = stride
         self.augmentation_rot = augmentation_rot
-        self.augmentation_tran = augmentation_tran
+        self.augmentation_tran_x = augmentation_tran_x
+        self.augmentation_tran_y = augmentation_tran_y
 
         if transform:
             self.transform = transform
@@ -62,7 +63,6 @@ class GlyphDataset(Dataset):
     def __len__(self):
         return len(self.samples)
 
-
     def __getitem__(self, idx):
         sample = self.samples[idx]
         filename = sample['file']
@@ -76,21 +76,35 @@ class GlyphDataset(Dataset):
             image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
             width, height = image.size
 
-            # === Apply X-axis shift (simplified) ===
-            if self.augmentation_tran != 0:
-                # Calculate pixel shift (positive = right, negative = left)
-                shift_x = int(width * self.augmentation_tran)
-                
-                # Create a new white canvas
-                shifted_image = Image.new("RGB", (width, height), (255, 255, 255))
-                
-                # Paste original image at the shifted position
-                paste_x = shift_x  # Directly use shift (no centering)
-                shifted_image.paste(image, (paste_x, 0))  # Y-coordinate always 0
-                
-                image = shifted_image
+            # === Apply X and Y translation ===
+            if self.augmentation_tran_x != 0.0 or self.augmentation_tran_y != 0.0:
+                # Interpret value as percent, so divide by 100
+                shift_x = int(width * (self.augmentation_tran_x / 100))
+                shift_y = int(height * (self.augmentation_tran_y / 100))
 
-            # Apply rotation if needed (optional)
+
+                # Create white canvas
+                translated_image = Image.new("RGB", (width, height), (255, 255, 255))
+
+                # Calculate paste position with bounds checking
+                paste_x = max(0, shift_x) if shift_x > 0 else 0
+                paste_y = max(0, shift_y) if shift_y > 0 else 0
+                
+                # Calculate crop area (opposite of shift direction)
+                crop_left = max(0, -shift_x)
+                crop_upper = max(0, -shift_y)
+                crop_right = min(width, width - shift_x)
+                crop_lower = min(height, height - shift_y)
+                
+                # Crop the original image if needed
+                if crop_left < crop_right and crop_upper < crop_lower:
+                    image = image.crop((crop_left, crop_upper, crop_right, crop_lower))
+                
+                # Paste cropped image onto canvas
+                translated_image.paste(image, (paste_x, paste_y))
+                image = translated_image
+
+            # Apply rotation if needed
             if self.augmentation_rot > 0:
                 angle = random.uniform(-self.augmentation_rot, self.augmentation_rot)
                 image = image.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
@@ -101,47 +115,13 @@ class GlyphDataset(Dataset):
         except Exception as e:
             raise RuntimeError(f"Failed to process image {filename}: {str(e)}")
 
-    def show(self, num=10):
-        if num <= 0:
-            raise ValueError(f"Number of samples to display must be positive (got {num})")
-
-        if len(self) == 0:
-            raise ValueError("Dataset contains no samples")
-
-        if num > len(self):
-            raise ValueError(f"Requested {num} samples but dataset only contains {len(self)}.")
-
-        indices = random.sample(range(len(self)), num)
-        images = []
-        values = []
-
-        for i in indices:
-            image, value = self[i]
-            images.append(image)
-            values.append(value)
-
-        nrow = min(5, num)
-        ncol = math.ceil(num / nrow)
-
-        fig, axes = plt.subplots(ncol, nrow, figsize=(nrow * 1, ncol * 1))
-        axes = axes.flatten() if num > 1 else [axes]
-
-        for idx, ax in enumerate(axes):
-            if idx < len(images):
-                img = images[idx].permute(1, 2, 0).numpy()
-                ax.imshow(img)
-                ax.text(4, 12, f"Value: {values[idx]:.2f}", fontsize=9, color='white',
-                        bbox=dict(facecolor='black', alpha=0.7, boxstyle='round,pad=0.3'))
-            ax.axis('off')
-
-        plt.tight_layout()
-        plt.show()
 
 class PairwiseGlyphDataset(GlyphDataset):
     def __init__(self, zip_path, resize=None, split='train', transform=None, stride=1,
-                 augmentation_rot=0, augmentation_tran=0.0):
-        super().__init__(zip_path, resize, split, transform, stride, augmentation_rot, augmentation_tran)
-        self.pairs = []  # list of (index1, index2)
+             augmentation_rot=0, augmentation_tran_x=0.0, augmentation_tran_y=0.0):
+        super().__init__(zip_path, resize, split, transform, stride,
+                        augmentation_rot, augmentation_tran_x, augmentation_tran_y)
+
 
     def make_pairs(self, N=1000, max_distance=100.0):
         """

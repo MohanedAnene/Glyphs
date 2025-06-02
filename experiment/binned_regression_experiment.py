@@ -54,9 +54,9 @@ def main(config: DictConfig):
     # Getting the dataset
     dataset_file = config.dataset
     test_file = config.test
-    train_dataset = ML.GlyphDataset(dataset_file, resize=config.image_resolution, split = "train",augmentation_rot=config.rotation,augmentation_tran=config.translation,stride=config.stride)
-    validation_dataset = ML.GlyphDataset(dataset_file, resize=config.image_resolution,split = 'test',augmentation_rot=config.rotation,augmentation_tran=config.translation,stride=config.stride)
-    test_dataset = ML.GlyphDataset(test_file, resize=config.image_resolution, split='test',augmentation_rot=config.rotation,augmentation_tran=config.translation,stride=config.stride)
+    train_dataset = ML.GlyphDataset(dataset_file, resize=config.image_resolution, split = "train",augmentation_rot=config.rotation,augmentation_tran_x=config.translation_x,augmentation_tran_y=config.translation_y,stride=config.stride)
+    validation_dataset = ML.GlyphDataset(dataset_file, resize=config.image_resolution,split = 'test',augmentation_rot=config.rotation,augmentation_tran_x=config.translation_x,augmentation_tran_y=config.translation_y,stride=config.stride)
+    test_dataset = ML.GlyphDataset(test_file, resize=config.image_resolution, split='test',augmentation_rot=config.rotation,augmentation_tran_x=config.translation_x,augmentation_tran_y=config.translation_y,stride=config.stride)
 
     # Assign the loaders 
 
