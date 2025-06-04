@@ -1,9 +1,9 @@
 architecture: CNN-Glyph
 
-dataset: data/simple-star.zip
-test: data/simple-star-validation.zip
+dataset: data/simple-star-L.zip
+test: data/simple-star-test.zip
 
-epochs: 10
+epochs: 20
 batch_size: 64
 learning_rate: 0.0005
 loss_fn: MSELoss
@@ -13,14 +13,15 @@ cuda: 0
 image_resolution: [128, 128]
 
 regression: true
-num_bins: 20
+num_bins: 5
+margin: 8.0
 
 rotation: 0
 translation_x: 0
 translation_y: 0 
 
-stepsize: 0
-gamma: 0
+stepsize: 5
+learning_decay: 0.8
 
 stride: 0
 

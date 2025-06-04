@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Import from a sibling folder 
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +15,7 @@ import numpy as np
 from torch.optim.lr_scheduler import StepLR
 import hydra
 from omegaconf import DictConfig, OmegaConf
-import os
+
 from datetime import datetime
 
 
@@ -76,7 +82,7 @@ def main(config: DictConfig):
     criterion = torch.nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
 
-    scheduler = StepLR(optimizer, step_size=config.stepsize, gamma=config.gamma)  
+    scheduler = StepLR(optimizer, step_size=config.stepsize, gamma=config.learning_decay)  
 
     experiment_name = f"exp-SimpleStar-{config.image_resolution[0]}x{config.image_resolution[1]}-{config.num_bins}bins-BR"
 
