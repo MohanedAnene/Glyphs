@@ -48,7 +48,7 @@ class GlyphClassifier(nn.Module):
         x = self.classifier(x)     
         return x
 
-@hydra.main(version_base=None, config_path="C:/Users/mohanned/Desktop/Mohaned/Glyphs/cfgs", config_name="config")
+@hydra.main(version_base=None, config_path="../cfgs", config_name="config")
 def main(config: DictConfig):
     # Convert config to dict and fix any problematic types
     config_dict = OmegaConf.to_container(config, resolve=True)

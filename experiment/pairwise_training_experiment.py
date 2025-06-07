@@ -47,7 +47,7 @@ class GlyphClassifier(nn.Module):
         x = self.classifier(x)     
         return x
 
-@hydra.main(version_base=None, config_path="C:/Users/mohanned/Desktop/Mohaned/Glyphs/cfgs", config_name="config")
+@hydra.main(version_base=None, config_path="../cfgs", config_name="config")
 def main(config: DictConfig):
     # Convert config to dict and fix any problematic types
     config_dict = OmegaConf.to_container(config, resolve=True)
@@ -64,11 +64,11 @@ def main(config: DictConfig):
     test_dataset_eval = ML.GlyphDataset(zip_path=config.test,resize=config.image_resolution,split='test',augmentation_rot=config.rotation,augmentation_tran_x=config.translation_x,augmentation_tran_y=config.translation_y)
 
     # Generate pairs before using 
-    pairwise_train_dataset.make_pairs(N=1000, max_distance=100.0)
+ 
     pairwise_validation_dataset.make_pairs(N=1000, max_distance=100.0)
 
     # Create DataLoader as usual
-    train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
+    
     validation_loader = ML.create_loader(pairwise_validation_dataset, batch_size=config.batch_size//2, shuffle=True)
     test_loader_eval = ML.create_loader(test_dataset_eval, batch_size=config.batch_size, shuffle=False)
 
@@ -108,6 +108,8 @@ def main(config: DictConfig):
 
 
     for epoch in range(config.epochs):
+        pairwise_train_dataset.make_pairs(N=1000, max_distance=100.0)
+        train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
         model.train()
         running_loss = 0.0
 
