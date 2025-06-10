@@ -108,6 +108,13 @@ def main(config: DictConfig):
 
 
     for epoch in range(config.epochs):
+        # Apply decay to margin and max_distance if < 1
+        if config.margin_decay < 1.0:
+            config.margin *= config.margin_decay
+
+        if config.max_distance_decay < 1.0:
+            config.max_distance *= config.max_distance_decay
+
         pairwise_train_dataset.make_pairs(N=1000, max_distance=config.max_distance)
         train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
         model.train()
@@ -126,7 +133,7 @@ def main(config: DictConfig):
             pred1 = torch.sum(prob1 * bin_centers, dim=1)
             pred2 = torch.sum(prob2 * bin_centers, dim=1)
 
-            loss = pairwise_hinge_loss(pred1, pred2, val1, val2)
+            loss = pairwise_hinge_loss(pred1, pred2, val1, val2, margin=config.margin)
 
             optimizer.zero_grad()
             loss.backward()
