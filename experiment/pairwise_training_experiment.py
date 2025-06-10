@@ -65,7 +65,7 @@ def main(config: DictConfig):
 
     # Generate pairs before using 
  
-    pairwise_validation_dataset.make_pairs(N=1000, max_distance=100.0)
+    pairwise_validation_dataset.make_pairs(N=1000, max_distance=config.max_distance)
 
     # Create DataLoader as usual
     
@@ -108,7 +108,7 @@ def main(config: DictConfig):
 
 
     for epoch in range(config.epochs):
-        pairwise_train_dataset.make_pairs(N=1000, max_distance=100.0)
+        pairwise_train_dataset.make_pairs(N=1000, max_distance=config.max_distance)
         train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
         model.train()
         running_loss = 0.0
@@ -175,7 +175,7 @@ def main(config: DictConfig):
 
 
         scheduler.step()
-        
+
     fig, ax1 = plt.subplots(figsize=(8, 4))
 
     # First Y-axis: training and validation loss
