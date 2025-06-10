@@ -9,6 +9,7 @@ learning_rate: 0.0005
 loss_fn: MSELoss
 optimizer: Adam
 cuda: 0
+name: default_run
 
 image_resolution: [128, 128]
 
@@ -20,7 +21,7 @@ rotation: 0
 translation_x: 0
 translation_y: 0 
 
-stepsize: 5
+stepsize: 1
 learning_decay: 0.8
 
 stride: 0

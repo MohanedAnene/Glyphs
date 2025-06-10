@@ -82,7 +82,7 @@ def main(config: DictConfig):
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
     scheduler = StepLR(optimizer, step_size=config.stepsize, gamma=config.learning_decay)
 
-    experiment_name = f"exp-Pairwise-{config.image_resolution[0]}x{config.image_resolution[1]}-{config.num_bins}bins"
+    experiment_name = config.name
     print(f"Experiment name: {experiment_name}")
     
     def pairwise_hinge_loss(pred1, pred2, true1, true2, margin=config.margin, lambda_range=0.01):
@@ -175,7 +175,7 @@ def main(config: DictConfig):
 
 
         scheduler.step()
-
+        
     fig, ax1 = plt.subplots(figsize=(8, 4))
 
     # First Y-axis: training and validation loss
@@ -194,18 +194,30 @@ def main(config: DictConfig):
     ax2.set_ylim(0, 12)  # Force y-axis from 0 to 12 for MAE
     ax2.legend(loc='upper right')
 
-    plt.title("Loss and MAE Over Epochs")
+    # Clean name and detect subfolder if any
+    raw_name = config.name.strip().rstrip(".png")  # remove trailing .png just in case
+    plt.title(f"Loss and MAE Over Epochs\n{raw_name}")
     fig.tight_layout()
 
-    # === Generate unique filename in plots/ folder
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"loss_plot_lr{config.learning_rate}_lrd{config.learning_decay}_{timestamp}.png"
-    plot_dir = os.path.join(os.getcwd(), "plots")
-    os.makedirs(plot_dir, exist_ok=True)  # Create folder if it doesn't exist
-    filepath = os.path.join(plot_dir, filename)
+    if '/' in raw_name:
+        subfolder, base_name = raw_name.rsplit('/', 1)
+    else:
+        subfolder, base_name = '', raw_name
 
+    plot_dir = os.path.join(os.getcwd(), "plots", subfolder)
+    os.makedirs(plot_dir, exist_ok=True)  # Create folder if it doesn't exist
+
+    # Prevent overwriting existing files
+    final_name = base_name + ".png"
+    counter = 1
+    while os.path.exists(os.path.join(plot_dir, final_name)):
+        final_name = f"{base_name}_{counter}.png"
+        counter += 1
+
+    filepath = os.path.join(plot_dir, final_name)
     plt.savefig(filepath)
     print(f"[INFO] Plot saved to {filepath}")
+
 
 if __name__ == "__main__":
     main()
