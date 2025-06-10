@@ -112,8 +112,8 @@ def main(config: DictConfig):
         if config.margin_decay < 1.0:
             config.margin *= config.margin_decay
 
-        if config.max_distance_decay < 1.0:
-            config.max_distance *= config.max_distance_decay
+        if config.maxdistance_decay < 1.0:
+            config.max_distance *= config.maxdistance_decay
 
         pairwise_train_dataset.make_pairs(N=1000, max_distance=config.max_distance)
         train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)

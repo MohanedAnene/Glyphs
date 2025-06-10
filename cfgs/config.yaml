@@ -17,7 +17,7 @@ regression: true
 num_bins: 5
 margin: 8.0
 max_distance: 100.0
-MaxDistance_decay: 1.0
+maxdistance_decay: 1.0
 margin_decay: 1.0
 
 rotation: 0
