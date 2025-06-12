@@ -15,6 +15,7 @@ image_resolution: [128, 128]
 
 regression: true
 num_bins: 5
+num_pairs: 1000
 margin: 8.0
 max_distance: 100.0
 maxdistance_decay: 1.0

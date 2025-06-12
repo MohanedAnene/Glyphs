@@ -65,7 +65,7 @@ def main(config: DictConfig):
 
     # Generate pairs before using 
  
-    pairwise_validation_dataset.make_pairs(N=1000, max_distance=config.max_distance)
+    pairwise_validation_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
 
     # Create DataLoader as usual
     
@@ -115,7 +115,7 @@ def main(config: DictConfig):
         if config.maxdistance_decay < 1.0:
             config.max_distance *= config.maxdistance_decay
 
-        pairwise_train_dataset.make_pairs(N=1000, max_distance=config.max_distance)
+        pairwise_train_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
         train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
         model.train()
         running_loss = 0.0
