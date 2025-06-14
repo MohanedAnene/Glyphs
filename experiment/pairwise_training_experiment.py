@@ -183,14 +183,15 @@ def main(config: DictConfig):
 
         scheduler.step()
 
-    fig, ax1 = plt.subplots(figsize=(8, 4))
+        # === Add plot with extra info
+    fig, ax1 = plt.subplots(figsize=(10, 6))  # wider for text
 
     # First Y-axis: training and validation loss
     ax1.plot(epoch_train_losses, label='Training Loss', color='blue', alpha=0.6)
     ax1.plot(val_losses, label='Validation Loss', color='orange', linewidth=2)
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Loss")
-    ax1.set_ylim(0, 3)  # Force y-axis from 0 to 3 for loss
+    ax1.set_ylim(0, 3)
     ax1.legend(loc='upper left')
     ax1.grid(True)
 
@@ -198,23 +199,46 @@ def main(config: DictConfig):
     ax2 = ax1.twinx()
     ax2.plot(val_maes, label='Validation MAE', color='green', linestyle='--')
     ax2.set_ylabel("MAE")
-    ax2.set_ylim(0, 12)  # Force y-axis from 0 to 12 for MAE
+    ax2.set_ylim(0, 12)
     ax2.legend(loc='upper right')
 
-    # Clean name and detect subfolder if any
-    raw_name = config.name.strip().rstrip(".png")  # remove trailing .png just in case
-    plt.title(f"Loss and MAE Over Epochs\n{raw_name}")
-    fig.tight_layout()
+    # === Compute margin and max_distance at epoch 15 and 20
+    def decay_val(init, decay, epoch):
+        return init * (decay ** (epoch - 1))
 
+    mxd0 = config_dict["max_distance"]
+    mxd_decay = config_dict.get("maxdistance_decay", 1.0)
+    m0 = config_dict["margin"]
+    m_decay = config_dict.get("margin_decay", 1.0)
+
+    mxd_15 = decay_val(mxd0, mxd_decay, 15)
+    mxd_20 = decay_val(mxd0, mxd_decay, 20)
+    m_15 = decay_val(m0, m_decay, 15)
+    m_20 = decay_val(m0, m_decay, 20)
+
+    # === Prepare and write text block
+    info_text = (
+        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay}\n"
+        f"Ma: {m0:.2f} | MaD: {m_decay} → Epoch15: {m_15:.2f}, Epoch20: {m_20:.2f}\n"
+        f"MD: {mxd0:.2f} | MDD: {mxd_decay} → Epoch15: {mxd_15:.2f}, Epoch20: {mxd_20:.2f}"
+    )
+
+    fig.text(0.05, -0.1, info_text, ha='left', va='top', fontsize=9)
+
+    # === Title & layout
+    raw_name = config.name.strip().rstrip(".png")
+    plt.title(f"Loss and MAE Over Epochs\n{raw_name}")
+    fig.tight_layout(rect=[0, 0.05, 1, 1])  # Leave space for text
+
+    # === Save with collision protection
     if '/' in raw_name:
         subfolder, base_name = raw_name.rsplit('/', 1)
     else:
         subfolder, base_name = '', raw_name
 
     plot_dir = os.path.join(os.getcwd(), "plots", subfolder)
-    os.makedirs(plot_dir, exist_ok=True)  # Create folder if it doesn't exist
+    os.makedirs(plot_dir, exist_ok=True)
 
-    # Prevent overwriting existing files
     final_name = base_name + ".png"
     counter = 1
     while os.path.exists(os.path.join(plot_dir, final_name)):
@@ -222,8 +246,9 @@ def main(config: DictConfig):
         counter += 1
 
     filepath = os.path.join(plot_dir, final_name)
-    plt.savefig(filepath)
+    plt.savefig(filepath, bbox_inches='tight')
     print(f"[INFO] Plot saved to {filepath}")
+
 
 
 if __name__ == "__main__":
