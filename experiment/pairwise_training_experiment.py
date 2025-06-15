@@ -155,7 +155,7 @@ def main(config: DictConfig):
     lr_5, lr_10 = decay_val(lr0, lr_decay, 5), decay_val(lr0, lr_decay, 10)
 
     info_text = (
-        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} \u2192 Epoch5: {m_5:.2f}, Epoch10: {m_10:.2f}\n"
+        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} \u2192 Epoch5: {lr_5:.2f}, Epoch10: {lr_10:.2f}\n"
         f"Ma: {m0:.2f} | MaD: {m_decay} \u2192 Epoch5: {m_5:.2f}, Epoch10: {m_10:.2f}\n"
         f"MD: {mxd0:.2f} | MDD: {mxd_decay} \u2192 Epoch5: {mxd_5:.2f}, Epoch10: {mxd_10:.2f}"
     )
