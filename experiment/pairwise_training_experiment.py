@@ -211,16 +211,16 @@ def main(config: DictConfig):
     m0 = config_dict["margin"]
     m_decay = config_dict.get("margin_decay", 1.0)
 
-    mxd_15 = decay_val(mxd0, mxd_decay, 15)
-    mxd_20 = decay_val(mxd0, mxd_decay, 20)
-    m_15 = decay_val(m0, m_decay, 15)
-    m_20 = decay_val(m0, m_decay, 20)
+    mxd_5 = decay_val(mxd0, mxd_decay, 5)
+    mxd_10 = decay_val(mxd0, mxd_decay, 10)
+    m_5 = decay_val(m0, m_decay, 5)
+    m_10 = decay_val(m0, m_decay, 10)
 
     # === Prepare and write text block
     info_text = (
-        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay}\n"
-        f"Ma: {m0:.2f} | MaD: {m_decay} → Epoch15: {m_15:.2f}, Epoch20: {m_20:.2f}\n"
-        f"MD: {mxd0:.2f} | MDD: {mxd_decay} → Epoch15: {mxd_15:.2f}, Epoch20: {mxd_20:.2f}"
+        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} → Epoch5: {m_5:.2f}, Epoch10: {m_10:.2f}\n"
+        f"Ma: {m0:.2f} | MaD: {m_decay} → Epoch5: {m_5:.2f}, Epoch10: {m_10:.2f}\n"
+        f"MD: {mxd0:.2f} | MDD: {mxd_decay} → Epoch5: {mxd_5:.2f}, Epoch10: {mxd_10:.2f}"
     )
 
     fig.text(0.05, -0.1, info_text, ha='left', va='top', fontsize=9)
