@@ -149,8 +149,10 @@ def main(config: DictConfig):
 
     mxd0, mxd_decay = config_dict["max_distance"], config_dict.get("maxdistance_decay", 1.0)
     m0, m_decay = config_dict["margin"], config_dict.get("margin_decay", 1.0)
+    lr0, lr_decay = config_dict["learning_rate"], config_dict.get("learning_decay", 1.0)
     mxd_5, mxd_10 = decay_val(mxd0, mxd_decay, 5), decay_val(mxd0, mxd_decay, 10)
     m_5, m_10 = decay_val(m0, m_decay, 5), decay_val(m0, m_decay, 10)
+    lr_5, lr_10 = decay_val(lr0, lr_decay, 5), decay_val(lr0, lr_decay, 10)
 
     info_text = (
         f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} \u2192 Epoch5: {m_5:.2f}, Epoch10: {m_10:.2f}\n"
