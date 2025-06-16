@@ -205,8 +205,8 @@ def main(config: DictConfig):
     info_text = (
         f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} → "
         f"Epoch5: {lr_5:.10e}, Epoch10: {lr_10:.10e}\n"
-        f"Margin: {config.margin:.1f} | Margin Decay: {config.margin_decay:.2f}\n"
-        f"Max Dist: {config.max_distance:.1f} | MaxDist Decay: {config.maxdistance_decay:.2f}"
+        f"Margin: {config.margin} | Margin Decay: {config.margin_decay:.2f}\n"
+        f"Max Dist: {config.max_distance} | MaxDist Decay: {config.maxdistance_decay:.2f}"
     )
 
     # Add text box
