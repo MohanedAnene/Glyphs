@@ -46,6 +46,39 @@ class GlyphClassifier(nn.Module):
         x = self.classifier(x)     
         return x
 
+
+def save_plot_with_subfolders(fig, base_name, root_dir="plots"):
+    """
+    Save plot to subfolders based on name structure.
+    Handles names with '/' by creating subfolders.
+    """
+    # Remove .png if present
+    base_name = base_name.replace('.png', '')
+    
+    # Split into path components
+    if '/' in base_name:
+        subfolder, filename = base_name.rsplit('/', 1)
+        plot_dir = os.path.join(root_dir, subfolder)
+    else:
+        plot_dir = root_dir
+        filename = base_name
+    
+    # Create directory structure if needed
+    os.makedirs(plot_dir, exist_ok=True)
+    
+    # Generate full path and handle duplicates
+    filepath = os.path.join(plot_dir, f"{filename}.png")
+    counter = 1
+    while os.path.exists(filepath):
+        filepath = os.path.join(plot_dir, f"{filename}_{counter}.png")
+        counter += 1
+    
+    # Save the figure
+    fig.savefig(filepath, bbox_inches='tight', dpi=300)
+    print(f"[INFO] Plot saved to {filepath}")
+    return filepath
+
+
 @hydra.main(version_base=None, config_path="../cfgs", config_name="config")
 def main(config: DictConfig):
     config_dict = OmegaConf.to_container(config, resolve=True)
@@ -61,8 +94,8 @@ def main(config: DictConfig):
         augmentation_rot=config.rotation, augmentation_tran_x=config.translation_x, augmentation_tran_y=config.translation_y)
     pairwise_validation_dataset = ML.PairwiseGlyphDataset(dataset_file, resize=config.image_resolution, split="test",
         augmentation_rot=config.rotation, augmentation_tran_x=config.translation_x, augmentation_tran_y=config.translation_y)
-    test_dataset_eval = ML.GlyphDataset(zip_path=config.test, resize=config.image_resolution, split='test',
-        augmentation_rot=config.rotation, augmentation_tran_x=config.translation_x, augmentation_tran_y=config.translation_y)
+    test_dataset_eval = ML.GlyphDataset(zip_path=config.test, resize=config.image_resolution, split="test",
+                                        augmentation_rot=config.rotation, augmentation_tran_x=config.translation_x, augmentation_tran_y=config.translation_y)
 
     pairwise_validation_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
     validation_loader = ML.create_loader(pairwise_validation_dataset, batch_size=config.batch_size//2, shuffle=True)
@@ -171,7 +204,7 @@ def main(config: DictConfig):
     # Create info text with correct values
     info_text = (
         f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} → "
-        f"Epoch5: {lr_5:.2e}, Epoch10: {lr_10:.2e}\n"
+        f"Epoch5: {lr_5:.10e}, Epoch10: {lr_10:.10e}\n"
         f"Margin: {config.margin:.1f} | Margin Decay: {config.margin_decay:.2f}\n"
         f"Max Dist: {config.max_distance:.1f} | MaxDist Decay: {config.maxdistance_decay:.2f}"
     )
@@ -184,12 +217,10 @@ def main(config: DictConfig):
     raw_name = config.name.replace('.png', '')
     plt.title(f"Loss and MAE Over Epochs\n{raw_name}")
 
-    # Save plot
-    plot_dir = os.path.join(os.getcwd(), "plots")
-    os.makedirs(plot_dir, exist_ok=True)
-    filepath = os.path.join(plot_dir, f"{raw_name.replace('/', '_')}.png")
-    plt.savefig(filepath, bbox_inches='tight', dpi=300)
-    print(f"[INFO] Plot saved to {filepath}")
+    # Save plot using our new function
+    save_plot_with_subfolders(fig, config.name)
     plt.close()
+
+
 if __name__ == "__main__":
     main()
