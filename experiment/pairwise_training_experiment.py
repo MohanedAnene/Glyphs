@@ -134,48 +134,62 @@ def main(config: DictConfig):
         print(f"Epoch {epoch+1} - Val Loss: {val_losses[-1]:.4f} | Val MAE: {val_maes[-1]:.4f}")
         scheduler.step()
 
+    # Create figure with adjusted layout
     fig, ax1 = plt.subplots(figsize=(10, 6))
-    ax1.plot(epoch_train_losses, label='Training Loss', color='blue', alpha=0.6)
-    ax1.plot(val_losses, label='Validation Loss', color='orange', linewidth=2)
-    ax1.set_xlabel("Epoch"); ax1.set_ylabel("Loss"); ax1.set_ylim(0, 3)
-    ax1.legend(loc='upper left'); ax1.grid(True)
+    fig.subplots_adjust(bottom=0.3)  # Make room for text at bottom
 
+    # Plot training and validation loss
+    ax1.plot(epoch_train_losses, label='Training Loss', color='blue', alpha=0.6, linewidth=2)
+    ax1.plot(val_losses, label='Validation Loss', color='orange', linewidth=2)
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.set_ylim(0, max(3, max(epoch_train_losses)*1.1))  # Auto-scale based on max train loss
+    ax1.legend(loc='upper left')
+    ax1.grid(True)
+
+    # Plot MAE on secondary axis
     ax2 = ax1.twinx()
     ax2.plot(val_maes, label='Validation MAE', color='green', linestyle='--')
-    ax2.set_ylabel("MAE"); ax2.set_ylim(0, 12); ax2.legend(loc='upper right')
+    ax2.set_ylabel("MAE")
+    ax2.set_ylim(0, max(12, max(val_maes)*1.1))
+    ax2.legend(loc='upper right')
 
-    def decay_val(init, decay, epoch):
-        return init * (decay ** (epoch - 1))
+    # Get actual learning rates from scheduler
+    def get_actual_lrs(scheduler, optimizer, epochs):
+        lrs = []
+        for _ in range(epochs):
+            lrs.append(optimizer.param_groups[0]['lr'])
+            scheduler.step()
+        return lrs
 
-    mxd0, mxd_decay = config_dict["max_distance"], config_dict.get("maxdistance_decay", 1.0)
-    m0, m_decay = config_dict["margin"], config_dict.get("margin_decay", 1.0)
-    lr0, lr_decay = config_dict["learning_rate"], config_dict.get("learning_decay", 1.0)
-    mxd_5, mxd_10 = decay_val(mxd0, mxd_decay, 5), decay_val(mxd0, mxd_decay, 10)
-    m_5, m_10 = decay_val(m0, m_decay, 5), decay_val(m0, m_decay, 10)
-    lr_5, lr_10 = decay_val(lr0, lr_decay, 5), decay_val(lr0, lr_decay, 10)
+    # Reset scheduler to get actual LR values
+    scheduler_copy = StepLR(optimizer, step_size=config.stepsize, gamma=config.learning_decay)
+    actual_lrs = get_actual_lrs(scheduler_copy, optimizer, config.epochs)
+    lr_5 = actual_lrs[4] if len(actual_lrs) > 4 else 0
+    lr_10 = actual_lrs[9] if len(actual_lrs) > 9 else 0
 
+    # Create info text with correct values
     info_text = (
-        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} \u2192 Epoch5: {lr_5:.2f}, Epoch10: {lr_10:.2f}\n"
-        f"Ma: {m0:.2f} | MaD: {m_decay} \u2192 Epoch5: {m_5:.2f}, Epoch10: {m_10:.2f}\n"
-        f"MD: {mxd0:.2f} | MDD: {mxd_decay} \u2192 Epoch5: {mxd_5:.2f}, Epoch10: {mxd_10:.2f}"
+        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} → "
+        f"Epoch5: {lr_5:.2e}, Epoch10: {lr_10:.2e}\n"
+        f"Margin: {config.margin:.1f} | Margin Decay: {config.margin_decay:.2f}\n"
+        f"Max Dist: {config.max_distance:.1f} | MaxDist Decay: {config.maxdistance_decay:.2f}"
     )
-    fig.text(0.05, -0.1, info_text, ha='left', va='top', fontsize=9)
 
-    raw_name = config.name.strip().rstrip(".png")
+    # Add text box
+    fig.text(0.05, 0.05, info_text, ha='left', va='top', fontsize=9, 
+            bbox=dict(facecolor='white', alpha=0.8))
+
+    # Set title without .png
+    raw_name = config.name.replace('.png', '')
     plt.title(f"Loss and MAE Over Epochs\n{raw_name}")
-    fig.tight_layout(rect=[0, 0.05, 1, 1])
 
-    subfolder, base_name = ('', raw_name) if '/' not in raw_name else raw_name.rsplit('/', 1)
-    plot_dir = os.path.join(os.getcwd(), "plots", subfolder)
+    # Save plot
+    plot_dir = os.path.join(os.getcwd(), "plots")
     os.makedirs(plot_dir, exist_ok=True)
-    final_name = base_name + ".png"
-    counter = 1
-    while os.path.exists(os.path.join(plot_dir, final_name)):
-        final_name = f"{base_name}_{counter}.png"; counter += 1
-
-    filepath = os.path.join(plot_dir, final_name)
-    plt.savefig(filepath, bbox_inches='tight')
+    filepath = os.path.join(plot_dir, f"{raw_name.replace('/', '_')}.png")
+    plt.savefig(filepath, bbox_inches='tight', dpi=300)
     print(f"[INFO] Plot saved to {filepath}")
-
+    plt.close()
 if __name__ == "__main__":
     main()
