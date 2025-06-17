@@ -171,12 +171,17 @@ def main(config: DictConfig):
     fig, ax1 = plt.subplots(figsize=(10, 6))
     fig.subplots_adjust(bottom=0.3)  # Make room for text at bottom
 
+    # Fixed scale values
+    LOSS_Y_MAX = 3.0  # Fixed maximum for loss axis
+    MAE_Y_MAX = 12.0   # Fixed maximum for MAE axis
+
     # Plot training and validation loss
     ax1.plot(epoch_train_losses, label='Training Loss', color='blue', alpha=0.6, linewidth=2)
     ax1.plot(val_losses, label='Validation Loss', color='orange', linewidth=2)
     ax1.set_xlabel("Epoch")
     ax1.set_ylabel("Loss")
-    ax1.set_ylim(0, max(3, max(epoch_train_losses)*1.1))  # Auto-scale based on max train loss
+    ax1.set_ylim(0, LOSS_Y_MAX)  # Fixed scale
+    ax1.set_xlim(0, len(epoch_train_losses)-1)  # Full epoch range
     ax1.legend(loc='upper left')
     ax1.grid(True)
 
@@ -184,7 +189,7 @@ def main(config: DictConfig):
     ax2 = ax1.twinx()
     ax2.plot(val_maes, label='Validation MAE', color='green', linestyle='--')
     ax2.set_ylabel("MAE")
-    ax2.set_ylim(0, max(12, max(val_maes)*1.1))
+    ax2.set_ylim(0, MAE_Y_MAX)  # Fixed scale
     ax2.legend(loc='upper right')
 
     # Get actual learning rates from scheduler
