@@ -123,6 +123,9 @@ def main(config: DictConfig):
     val_losses = []
     val_maes = []
     global_step = 0
+    original_margin = config.margin
+    original_max_distance = config.max_distance
+
 
     for epoch in range(config.epochs):
         if config.margin_decay < 1.0:
@@ -205,14 +208,23 @@ def main(config: DictConfig):
     actual_lrs = get_actual_lrs(scheduler_copy, optimizer, config.epochs)
     lr_5 = actual_lrs[4] if len(actual_lrs) > 4 else 0
     lr_10 = actual_lrs[9] if len(actual_lrs) > 9 else 0
+    # Compute decayed values
+    margin_5 = original_margin * (config.margin_decay ** 4)
+    margin_10 = original_margin * (config.margin_decay ** 9)
+    mxd_5 = original_max_distance * (config.maxdistance_decay ** 4)
+    mxd_10 = original_max_distance * (config.maxdistance_decay ** 9)
+
 
     # Create info text with correct values
     info_text = (
-        f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} → "
-        f"Epoch5: {lr_5:.10e}, Epoch10: {lr_10:.10e}\n"
-        f"Margin: {config.margin} | Margin Decay: {config.margin_decay:.2f}\n"
-        f"Max Dist: {config.max_distance} | MaxDist Decay: {config.maxdistance_decay:.2f}"
-    )
+    f"LR: {config.learning_rate:.1e} | LRD: {config.learning_decay} → "
+    f"Epoch5: {lr_5:.10e}, Epoch10: {lr_10:.10e}\n"
+    f"Margin: {original_margin:.2f} | Margin Decay: {config.margin_decay:.2f} → "
+    f"Epoch5: {margin_5:.2f}, Epoch10: {margin_10:.2f}\n"
+    f"Max Dist: {original_max_distance:.2f} | MaxDist Decay: {config.maxdistance_decay:.2f} → "
+    f"Epoch5: {mxd_5:.2f}, Epoch10: {mxd_10:.2f}"
+)
+
 
     # Add text box
     fig.text(0.05, 0.05, info_text, ha='left', va='top', fontsize=9, 
