@@ -38,6 +38,7 @@ class GlyphDataset(Dataset):
             base_transforms.append(transforms.ToTensor())
             self.transform = transforms.Compose(base_transforms)
 
+        # Load metadata and samples first
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             with zip_ref.open('_dataset-info.json') as f:
                 self.metadata = json.load(f)
@@ -50,15 +51,68 @@ class GlyphDataset(Dataset):
             if self.stride > 1:
                 self.samples = self.samples[self.stride - 1::self.stride]
 
-            self.image_data = {}
+        # Now preload all images into memory (decoded PIL Images)
+        self.preloaded_images = {}
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             for sample in self.samples:
                 filename = sample['file']
                 try:
                     with zip_ref.open(filename) as image_file:
-                        self.image_data[filename] = image_file.read()
+                        # Load, decode and resize image once during init
+                        img = Image.open(io.BytesIO(image_file.read())).convert('RGB')
+                        if self.resize is not None:
+                            img = img.resize(self.resize)
+                        self.preloaded_images[filename] = img
                 except Exception as e:
                     print(f"[WARNING] Failed to load {filename}: {e}")
-                    self.image_data[filename] = None
+                    self.preloaded_images[filename] = None
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        sample = self.samples[idx]
+        filename = sample['file']
+        value = sample['value']
+
+        image = self.preloaded_images.get(filename)
+        if image is None:
+            raise FileNotFoundError(f"Image data not found for file: {filename}")
+
+        try:
+            # Create a copy to avoid modifying the cached image
+            image = image.copy()
+            
+            # Apply augmentations
+            width, height = image.size
+            if self.augmentation_tran_x != 0.0 or self.augmentation_tran_y != 0.0:
+                shift_x = int(width * (self.augmentation_tran_x / 100))
+                shift_y = int(height * (self.augmentation_tran_y / 100))
+                
+                translated_image = Image.new("RGB", (width, height), (255, 255, 255))
+                paste_x = max(0, shift_x) if shift_x > 0 else 0
+                paste_y = max(0, shift_y) if shift_y > 0 else 0
+                crop_left = max(0, -shift_x)
+                crop_upper = max(0, -shift_y)
+                crop_right = min(width, width - shift_x)
+                crop_lower = min(height, height - shift_y)
+                
+                if crop_left < crop_right and crop_upper < crop_lower:
+                    image = image.crop((crop_left, crop_upper, crop_right, crop_lower))
+                
+                translated_image.paste(image, (paste_x, paste_y))
+                image = translated_image
+
+            if self.augmentation_rot > 0:
+                angle = random.uniform(-self.augmentation_rot, self.augmentation_rot)
+                image = image.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
+
+            # Apply final transforms (just ToTensor since we already resized)
+            image = transforms.ToTensor()(image)
+            return image, torch.tensor(value, dtype=torch.float32)
+
+        except Exception as e:
+            raise RuntimeError(f"Failed to process image {filename}: {str(e)}")
 
     def __len__(self):
         return len(self.samples)
@@ -161,9 +215,9 @@ class PairwiseGlyphDataset(GlyphDataset):
         return img1, val1, img2, val2
 
 # --- Helper Functions ---
-def create_loader(dataset: Dataset, batch_size: int = 32, shuffle: bool = True, num_workers: int = 0):
+def create_loader(dataset: Dataset, batch_size: int = 32, shuffle: bool = True, num_workers: int = 4):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers,
-                      pin_memory=True if torch.cuda.is_available() else False)
+                      pin_memory=True if torch.cuda.is_available() else False, persistent_workers=True if num_workers > 0 else False)
 
 def visualize_loader(loader: DataLoader, max_pairs: int = 8, silent: bool = False):
     try:
