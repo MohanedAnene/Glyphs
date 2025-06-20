@@ -114,68 +114,13 @@ class GlyphDataset(Dataset):
         except Exception as e:
             raise RuntimeError(f"Failed to process image {filename}: {str(e)}")
 
-    def __len__(self):
-        return len(self.samples)
-
-    def __getitem__(self, idx):
-        sample = self.samples[idx]
-        filename = sample['file']
-        value = sample['value']
-
-        image_bytes = self.image_data.get(filename)
-        if image_bytes is None:
-            raise FileNotFoundError(f"Image data not found for file: {filename}")
-
-        try:
-            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-            width, height = image.size
-
-            # === Apply X and Y translation ===
-            if self.augmentation_tran_x != 0.0 or self.augmentation_tran_y != 0.0:
-                # Interpret value as percent, so divide by 100
-                shift_x = int(width * (self.augmentation_tran_x / 100))
-                shift_y = int(height * (self.augmentation_tran_y / 100))
-
-
-                # Create white canvas
-                translated_image = Image.new("RGB", (width, height), (255, 255, 255))
-
-                # Calculate paste position with bounds checking
-                paste_x = max(0, shift_x) if shift_x > 0 else 0
-                paste_y = max(0, shift_y) if shift_y > 0 else 0
-                
-                # Calculate crop area (opposite of shift direction)
-                crop_left = max(0, -shift_x)
-                crop_upper = max(0, -shift_y)
-                crop_right = min(width, width - shift_x)
-                crop_lower = min(height, height - shift_y)
-                
-                # Crop the original image if needed
-                if crop_left < crop_right and crop_upper < crop_lower:
-                    image = image.crop((crop_left, crop_upper, crop_right, crop_lower))
-                
-                # Paste cropped image onto canvas
-                translated_image.paste(image, (paste_x, paste_y))
-                image = translated_image
-
-            # Apply rotation if needed
-            if self.augmentation_rot > 0:
-                angle = random.uniform(-self.augmentation_rot, self.augmentation_rot)
-                image = image.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
-
-            image = self.transform(image)
-            return image, torch.tensor(value, dtype=torch.float32)
-
-        except Exception as e:
-            raise RuntimeError(f"Failed to process image {filename}: {str(e)}")
-
 
 class PairwiseGlyphDataset(GlyphDataset):
     def __init__(self, zip_path, resize=None, split='train', transform=None, stride=1,
-             augmentation_rot=0, augmentation_tran_x=0.0, augmentation_tran_y=0.0):
+                 augmentation_rot=0, augmentation_tran_x=0.0, augmentation_tran_y=0.0):
         super().__init__(zip_path, resize, split, transform, stride,
                         augmentation_rot, augmentation_tran_x, augmentation_tran_y)
-
+        self.pairs = []
 
     def make_pairs(self, N=1000, max_distance=100.0):
         """
@@ -201,7 +146,7 @@ class PairwiseGlyphDataset(GlyphDataset):
             print(f"[INFO] Only {len(self.pairs)} valid pairs found under max_distance={max_distance}")
 
     def __len__(self):
-        if not self.pairs:
+        if not hasattr(self, 'pairs') or not self.pairs:
             raise ValueError("No pairs generated. Call `.make_pairs()` before using this dataset.")
         return len(self.pairs)
 
