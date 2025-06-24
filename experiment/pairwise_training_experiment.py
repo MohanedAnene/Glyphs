@@ -175,7 +175,7 @@ def main(config: DictConfig):
     fig.subplots_adjust(bottom=0.3)  # Make room for text at bottom
 
     # Fixed scale values
-    LOSS_Y_MAX = 3.0  # Fixed maximum for loss axis
+    LOSS_Y_MAX = 15.0  # Fixed maximum for loss axis
     MAE_Y_MAX = 12.0   # Fixed maximum for MAE axis
 
     # Plot training and validation loss
