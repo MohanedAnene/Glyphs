@@ -19,7 +19,7 @@ regression: true
 num_bins: 5
 num_pairs: 20480
 margin: 15.0
-max_distance: 100.0
+max_distance: 20.0
 maxdistance_decay: 1.0
 margin_decay: 1.0
 
