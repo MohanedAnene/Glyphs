@@ -15,6 +15,8 @@ from torch.optim.lr_scheduler import StepLR
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from datetime import datetime
+from scipy.stats import spearmanr
+
 
 
 class GlyphClassifier(nn.Module):
@@ -226,9 +228,37 @@ def main(config: DictConfig):
 )
 
 
-    # Add text box
-    fig.text(0.05, 0.05, info_text, ha='left', va='top', fontsize=9, 
+    # === FINAL TEST MAE + SPEARMAN ===
+    model.eval()
+    all_preds = []
+    all_truths = []
+    with torch.no_grad():
+        for imgs, values in test_loader_eval:
+            imgs, values = imgs.to(device), values.to(device)
+            out = model(imgs)
+            probs = F.softmax(out, dim=1)
+            preds = torch.sum(probs * bin_centers, dim=1)
+            all_preds.append(preds.cpu())
+            all_truths.append(values.cpu())
+
+    all_preds = torch.cat(all_preds).numpy()
+    all_truths = torch.cat(all_truths).numpy()
+
+    final_mae = np.mean(np.abs(all_preds - all_truths))
+    spearman_corr, _ = spearmanr(all_preds, all_truths)
+
+    print(f"Final Test MAE: {final_mae:.4f}")
+    print(f"Spearman Correlation: {spearman_corr:.4f}")
+
+    # Extend info text
+    info_text += (
+        f"\nFinal MAE: {final_mae:.4f} | Spearman: {spearman_corr:.4f}"
+    )
+
+    # Add updated text box (slightly to the right)
+    fig.text(0.55, 0.05, info_text, ha='left', va='top', fontsize=9,
             bbox=dict(facecolor='white', alpha=0.8))
+
 
     # Set title without .png
     raw_name = config.name.replace('.png', '')
