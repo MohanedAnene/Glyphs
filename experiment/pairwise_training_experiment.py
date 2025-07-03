@@ -98,6 +98,9 @@ def main(config: DictConfig):
         augmentation_rot=config.rotation, augmentation_tran_x=config.translation_x, augmentation_tran_y=config.translation_y)
     test_dataset_eval = ML.GlyphDataset(zip_path=config.test, resize=config.image_resolution, split="test",
                                         augmentation_rot=config.rotation, augmentation_tran_x=config.translation_x, augmentation_tran_y=config.translation_y)
+    
+    pairwise_train_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
+    train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
 
     pairwise_validation_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
     validation_loader = ML.create_loader(pairwise_validation_dataset, batch_size=config.batch_size//2, shuffle=True)
@@ -135,8 +138,7 @@ def main(config: DictConfig):
         if config.maxdistance_decay < 1.0:
             config.max_distance *= config.maxdistance_decay
 
-        pairwise_train_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
-        train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
+
         model.train()
         running_loss = 0.0
 
