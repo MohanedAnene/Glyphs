@@ -147,7 +147,7 @@ def main(config: DictConfig):
         if config.maxdistance_decay < 1.0:
             config.max_distance *= config.maxdistance_decay
 
-        pairwise_train_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance, seed=config.seed)
+        pairwise_train_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
         train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
 
         model.train()
