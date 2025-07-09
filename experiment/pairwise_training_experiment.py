@@ -11,6 +11,7 @@ import src.machine_learning as ML
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import random
 from torch.optim.lr_scheduler import StepLR
 import hydra
 from omegaconf import DictConfig, OmegaConf
@@ -80,10 +81,19 @@ def save_plot_with_subfolders(fig, base_name, root_dir="plots"):
     print(f"[INFO] Plot saved to {filepath}")
     return filepath
 
+def set_seed(seed):
+    random.seed(seed)                      # Python built-in
+    np.random.seed(seed)                   # Numpy
+    torch.manual_seed(seed)                # CPU-based PyTorch ops
+    torch.cuda.manual_seed(seed)           # CUDA GPU ops
+    torch.cuda.manual_seed_all(seed)       # If multi-GPU
+    torch.backends.cudnn.deterministic = True  # Force deterministic behavior
+    torch.backends.cudnn.benchmark = False     # Disable performance auto-tuning (nondeterministic)
 
 @hydra.main(version_base=None, config_path="../cfgs", config_name="config")
 def main(config: DictConfig):
     config_dict = OmegaConf.to_container(config, resolve=True)
+    set_seed(config.seed)  # You will add this to the config next
 
     # Safe defaults for decay
     config.margin_decay = getattr(config, "margin_decay", 1.0)
@@ -137,7 +147,7 @@ def main(config: DictConfig):
         if config.maxdistance_decay < 1.0:
             config.max_distance *= config.maxdistance_decay
 
-        pairwise_train_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance)
+        pairwise_train_dataset.make_pairs(N=config.num_pairs, max_distance=config.max_distance, seed=config.seed)
         train_loader = ML.create_loader(pairwise_train_dataset, batch_size=config.batch_size//2, shuffle=True)
 
         model.train()

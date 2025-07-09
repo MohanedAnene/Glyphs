@@ -122,11 +122,13 @@ class PairwiseGlyphDataset(GlyphDataset):
                         augmentation_rot, augmentation_tran_x, augmentation_tran_y)
         self.pairs = []
 
-    def make_pairs(self, N=1000, max_distance=100.0):
+    def make_pairs(self, N=1000, max_distance=100.0, seed=None):
         """
         Creates a list of (idx1, idx2) pairs where abs(value1 - value2) <= max_distance.
         Stores it in self.pairs and optionally limits to N total pairs.
         """
+        if seed is not None:
+            random.seed(seed)
         self.pairs = []
         all_indices = list(range(len(self.samples)))
         values = [self.samples[i]['value'] for i in all_indices]

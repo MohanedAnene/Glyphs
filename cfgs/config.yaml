@@ -28,9 +28,11 @@ translation_x: 0
 translation_y: 0
 
 stepsize: 1
-learning_decay: 0.8
+learning_decay: 0.85
 
 stride: 0
+
+seed: 42
 
 hydra:
   output_subdir: null
