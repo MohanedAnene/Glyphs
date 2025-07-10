@@ -90,6 +90,31 @@ def set_seed(seed):
     torch.backends.cudnn.deterministic = True  # Force deterministic behavior
     torch.backends.cudnn.benchmark = False     # Disable performance auto-tuning (nondeterministic)
 
+def save_scatter_plot(pred_distances, true_distances, losses, base_name, root_dir="plots"):
+    """
+    Create and save a scatter plot of true distances vs loss values
+    """
+    plt.figure(figsize=(10, 6))
+    plt.scatter(true_distances, losses, alpha=0.5, s=10)
+    plt.xlabel("True Distance Between Pairs")
+    plt.ylabel("Computed Loss")
+    plt.title("Loss vs True Pair Distance")
+    plt.grid(True, alpha=0.3)
+    
+    # Modify base name for scatter plot
+    if '/' in base_name:
+        parts = base_name.rsplit('/', 1)
+        scatter_name = f"{parts[0]}/scatter_{parts[1]}"
+    else:
+        scatter_name = f"scatter_{base_name}"
+    
+    save_plot_with_subfolders(plt, scatter_name, root_dir)
+    plt.close()
+
+
+
+
+
 @hydra.main(version_base=None, config_path="../cfgs", config_name="config")
 def main(config: DictConfig):
     config_dict = OmegaConf.to_container(config, resolve=True)
@@ -115,6 +140,42 @@ def main(config: DictConfig):
     validation_loader = ML.create_loader(pairwise_validation_dataset, batch_size=config.batch_size//2, shuffle=True)
     test_loader_eval = ML.create_loader(test_dataset_eval, batch_size=config.batch_size, shuffle=False)
 
+    def pairwise_hinge_loss(pred1, pred2, true1, true2, margin=config.margin, lambda_range=0.01):
+        direction = torch.sign(true1 - true2)
+        ranking_loss = torch.clamp(margin - direction * (pred1 - pred2), min=0)
+        range_penalty = (F.relu(-pred1) + F.relu(pred1 - 100) + F.relu(-pred2) + F.relu(pred2 - 100))
+        return ranking_loss.mean() + lambda_range * range_penalty.mean()
+    
+    def collect_scatter_data(model, loader, device, bin_centers, margin):
+        true_distances = []
+        losses = []
+        pred_distances = []
+        
+        model.eval()
+        with torch.no_grad():
+            for img1, val1, img2, val2 in loader:
+                img1, val1 = img1.to(device), val1.to(device)
+                img2, val2 = img2.to(device), val2.to(device)
+                
+                # Get predictions
+                out1, out2 = model(img1), model(img2)
+                prob1, prob2 = F.softmax(out1, dim=1), F.softmax(out2, dim=1)
+                pred1, pred2 = torch.sum(prob1 * bin_centers, dim=1), torch.sum(prob2 * bin_centers, dim=1)
+                
+                # Compute distances
+                true_dist = torch.abs(val1 - val2)
+                pred_dist = torch.abs(pred1 - pred2)
+                
+                # Compute loss
+                loss = pairwise_hinge_loss(pred1, pred2, val1, val2, margin=margin)
+                
+                # Store values
+                true_distances.extend(true_dist.cpu().numpy())
+                pred_distances.extend(pred_dist.cpu().numpy())
+                losses.extend([loss.item()] * len(true_dist))
+        
+        return pred_distances, true_distances, losses
+    
     device = torch.device(f"cuda:{config.cuda}" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -126,11 +187,7 @@ def main(config: DictConfig):
     experiment_name = config.name
     print(f"Experiment name: {experiment_name}")
 
-    def pairwise_hinge_loss(pred1, pred2, true1, true2, margin=config.margin, lambda_range=0.01):
-        direction = torch.sign(true1 - true2)
-        ranking_loss = torch.clamp(margin - direction * (pred1 - pred2), min=0)
-        range_penalty = (F.relu(-pred1) + F.relu(pred1 - 100) + F.relu(-pred2) + F.relu(pred2 - 100))
-        return ranking_loss.mean() + lambda_range * range_penalty.mean()
+
 
     train_losses = []
     epoch_train_losses = []
@@ -184,6 +241,13 @@ def main(config: DictConfig):
         val_maes.append(val_mae / (2 * len(validation_loader)))
         print(f"Epoch {epoch+1} - Val Loss: {val_losses[-1]:.4f} | Val MAE: {val_maes[-1]:.4f}")
         scheduler.step()
+
+        if epoch == config.epochs - 1:  # Only on last epoch
+            pred_dists, true_dists, loss_vals = collect_scatter_data(
+                model, validation_loader, device, bin_centers, config.margin
+            )
+            save_scatter_plot(pred_dists, true_dists, loss_vals, config.name)
+        
 
     # Create figure with adjusted layout
     fig, ax1 = plt.subplots(figsize=(10, 6))
@@ -281,6 +345,7 @@ def main(config: DictConfig):
     save_plot_with_subfolders(fig, config.name)
     plt.close()
 
+    
 
 if __name__ == "__main__":
     main()
