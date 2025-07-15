@@ -140,11 +140,23 @@ def main(config: DictConfig):
     validation_loader = ML.create_loader(pairwise_validation_dataset, batch_size=config.batch_size//2, shuffle=True)
     test_loader_eval = ML.create_loader(test_dataset_eval, batch_size=config.batch_size, shuffle=False)
 
-    def pairwise_hinge_loss(pred1, pred2, true1, true2, margin=config.margin, lambda_range=0.01):
-        direction = torch.sign(true1 - true2)
+    def pairwise_hinge_loss(pred1, pred2, true1, true2, margin=8.0, lambda_range=0.01):
+        """
+        Pairwise hinge loss with value range penalty.
+        Encourages correct ordering and penalizes predictions outside [0, 100].
+        """
+        direction = torch.sign(true1 - true2)  # +1, 0, -1
         ranking_loss = torch.clamp(margin - direction * (pred1 - pred2), min=0)
-        range_penalty = (F.relu(-pred1) + F.relu(pred1 - 100) + F.relu(-pred2) + F.relu(pred2 - 100))
+
+        range_penalty = (
+            F.relu(-pred1) + F.relu(pred1 - 100) +
+            F.relu(-pred2) + F.relu(pred2 - 100)
+        )
+
         return ranking_loss.mean() + lambda_range * range_penalty.mean()
+
+
+
     
     def collect_scatter_data(model, loader, device, bin_centers, margin):
         true_distances = []
@@ -167,7 +179,9 @@ def main(config: DictConfig):
                 pred_dist = torch.abs(pred1 - pred2)
                 
                 # Compute loss
-                loss = pairwise_hinge_loss(pred1, pred2, val1, val2, margin=margin)
+                loss = pairwise_hinge_loss(pred1, pred2, val1, val2, margin=config.margin, lambda_range=0.01)
+
+
                 
                 # Store values
                 true_distances.extend(true_dist.cpu().numpy())
@@ -216,7 +230,9 @@ def main(config: DictConfig):
             out1, out2 = model(img1), model(img2)
             prob1, prob2 = F.softmax(out1, dim=1), F.softmax(out2, dim=1)
             pred1, pred2 = torch.sum(prob1 * bin_centers, dim=1), torch.sum(prob2 * bin_centers, dim=1)
-            loss = pairwise_hinge_loss(pred1, pred2, val1, val2, margin=config.margin)
+            loss = pairwise_hinge_loss(pred1, pred2, val1, val2, margin=config.margin, lambda_range=0.01)
+
+
             optimizer.zero_grad(); loss.backward(); optimizer.step()
             running_loss += loss.item(); train_losses.append(loss.item())
             if global_step % 100 == 0:
@@ -234,7 +250,9 @@ def main(config: DictConfig):
                 out1, out2 = model(img1), model(img2)
                 prob1, prob2 = F.softmax(out1, dim=1), F.softmax(out2, dim=1)
                 pred1, pred2 = torch.sum(prob1 * bin_centers, dim=1), torch.sum(prob2 * bin_centers, dim=1)
-                val_loss += pairwise_hinge_loss(pred1, pred2, val1, val2).item()
+                val_loss += pairwise_hinge_loss(pred1, pred2, val1, val2, margin=config.margin, lambda_range=0.01).item()
+
+
                 val_mae += F.l1_loss(pred1, val1).item() + F.l1_loss(pred2, val2).item()
 
         val_losses.append(val_loss / len(validation_loader))
