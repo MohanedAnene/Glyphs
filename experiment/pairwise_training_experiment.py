@@ -213,8 +213,11 @@ def main(config: DictConfig):
 
 
     for epoch in range(config.epochs):
-        if config.margin_decay < 1.0:
+        if epoch >= 24:
+            config.margin = 3.0
+        elif config.margin_decay < 1.0:
             config.margin *= config.margin_decay
+
         if config.maxdistance_decay < 1.0:
             config.max_distance *= config.maxdistance_decay
 
