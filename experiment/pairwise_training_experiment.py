@@ -14,7 +14,7 @@ import numpy as np
 import random
 from torch.optim.lr_scheduler import StepLR
 import hydra
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf 
 from datetime import datetime
 from scipy.stats import spearmanr
 
@@ -40,7 +40,9 @@ class GlyphClassifier(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(128 * resolution[0]//8 * resolution[1]//8, 256),
             nn.ReLU(),
-            nn.Linear(256, NUM_bins)
+            nn.Dropout(p=0.5),
+            nn.Linear(256, NUM_bins),
+            nn.Dropout(p=0.3)
         )
 
     def forward(self, x):
