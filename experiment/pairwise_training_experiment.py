@@ -40,9 +40,7 @@ class GlyphClassifier(nn.Module):
         self.classifier = nn.Sequential(
             nn.Linear(128 * resolution[0]//8 * resolution[1]//8, 256),
             nn.ReLU(),
-            nn.Dropout(p=0.5),
-            nn.Linear(256, NUM_bins),
-            nn.Dropout(p=0.3)
+            nn.Linear(256, NUM_bins)
         )
 
     def forward(self, x):
