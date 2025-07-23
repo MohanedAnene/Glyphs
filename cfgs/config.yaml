@@ -1,8 +1,8 @@
 architecture: CNN-Glyph
 
 
-dataset: data/simple-star-L.zip
-test: data/simple-star-test.zip
+dataset: data/simple-star-XL.zip
+test: data/simple-star-test-XL.zip
 
 
 epochs: 50
