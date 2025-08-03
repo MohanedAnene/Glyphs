@@ -7,7 +7,7 @@ test: data/simple-star-test-XL.zip
 
 epochs: 50
 batch_size: 2048
-learning_rate: 0.0005
+learning_rate: 0.0001
 loss_fn: MSELoss
 optimizer: Adam
 cuda: 0
@@ -28,7 +28,7 @@ translation_x: 0
 translation_y: 0
 
 stepsize: 1
-learning_decay: 1
+learning_decay: 0.85
 
 stride: 0
 
